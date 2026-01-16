@@ -14,7 +14,7 @@ import Profile from './components/Profile';
 const ipfsClient = create({ url: 'http://127.0.0.1:5001/api/v0' });
 
 // 2. Blockchain Configuration
-const CONTRACT_ADDRESS = "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"; 
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; 
 
 function App() {
   const [postContent, setPostContent] = useState('');

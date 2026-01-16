@@ -1,4 +1,54 @@
- [
+[
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "postId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "author",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "cid",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "PostCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "follower",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "followed",
+          "type": "address"
+        }
+      ],
+      "name": "UserFollowed",
+      "type": "event"
+    },
     {
       "inputs": [
         {
@@ -74,6 +124,11 @@
               "internalType": "uint256",
               "name": "timestamp",
               "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "isMinted",
+              "type": "bool"
             }
           ],
           "internalType": "struct Cid.Post[]",
@@ -92,6 +147,25 @@
           "internalType": "address[]",
           "name": "",
           "type": "address[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "postToTokenId",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -126,6 +200,11 @@
           "internalType": "uint256",
           "name": "timestamp",
           "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isMinted",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
