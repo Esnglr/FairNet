@@ -1,12 +1,16 @@
-import React from 'react';
+import React, {useState} from 'react';
 import '../style.css';
 import { Link } from 'react-router-dom';
 
 // Added 'following' to props
 const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account}) => {
-  return (
+    const [file, setFile] = useState(null);
+    return (
     <div className="middle">
-      <form className="create-post" onSubmit={createPost}>
+      <form className="create-post" onSubmit={(e) => {
+        createPost(e, file);
+        setFile(null)
+      }}>
         <div className="profile-photo">
            <img src="https://ui-avatars.com/api/?name=You&background=random" alt="profile"/>
         </div>
@@ -16,6 +20,13 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
             id="create-post" 
             value={postContent}
             onChange={(e) => setPostContent(e.target.value)}
+            required
+        />
+        <input
+            type="file"
+            accept='image/*'
+            onChange={(e) => setFile(e.target.files[0])}
+            style={{fontSize: '0.8rem', width: '60%'}}
         />
         <input type="submit" value="Post" className="btn btn-primary" />
       </form>
@@ -68,6 +79,15 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                     </div>
                     <div className="content">
                         <p>{post.content}</p>
+                        {post.image && (
+                            <div style={{marginTop: '10px', borderRadius: '10px', overflow: 'hidden'}}>
+                                <img
+                                    src={post.image}
+                                    alt="Post content"
+                                    style={{width: '100%', borderRadius: '10px'}}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             );

@@ -14,7 +14,7 @@ import Profile from './components/Profile';
 const ipfsClient = create({ url: 'http://127.0.0.1:5001/api/v0' });
 
 // 2. Blockchain Configuration
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; 
+const CONTRACT_ADDRESS = "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"; 
 
 function App() {
   const [postContent, setPostContent] = useState('');
@@ -72,41 +72,73 @@ function App() {
 
   // 4. Load Posts
   const loadBlockchainPosts = async (provider) => {
-    try {
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, provider);
-      const data = await contract.getAllPosts();
-      const loadedPosts = [];
-
-      for (const item of data) {
-        const cid = item.cid;
+      try {
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+        
+        // 1. Get all posts from the smart contract
+        const allPosts = await contract.getAllPosts();
+        console.log("raw blockchain data:", allPosts);
+        
+        // 2. Fetch the "My Following" list (for the button logic)
+        let myFollowing = [];
         try {
-            const stream = ipfsClient.cat(cid);
-            let contentData = '';
-            for await (const chunk of stream) {
-                contentData += new TextDecoder().decode(chunk);
-            }
-            const jsonContent = JSON.parse(contentData);
+          const rawFollowing = await contract.getMyFollowing();
+          // Convert all addresses to lowercase to avoid "0xABC" vs "0xabc" bugs
+          myFollowing = rawFollowing.map(addr => addr.toLowerCase());
+        } catch (err) {
+          console.warn("Could not fetch following list", err);
+        }
+        setFollowing(myFollowing);
+
+        const loadedPosts = [];
+
+        // 3. Loop through every post and fetch its data from IPFS
+        for (let i = allPosts.length - 1; i >= 0; i--) {
+          const item = allPosts[i];
+          
+          try {
+            // Fetch the JSON data from IPFS
+            // We use the gateway 'https://ipfs.io/ipfs/' because it's public
+            // If it's slow, you can change it to 'http://127.0.0.1:8080/ipfs/'
+            const response = await fetch(`http://127.0.0.1:8080/ipfs/${item.cid}`);
+            
+            if (!response.ok) throw new Error("IPFS Fetch failed");
+            
+            const jsonContent = await response.json();
 
             loadedPosts.push({
-                cid: cid,
-                author: item.author,
-                timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
-                content: jsonContent.content,
-                userImage: "https://ui-avatars.com/api/?name=" + item.author + "&background=random"
+              id: i, // We need the ID for keys
+              cid: item.cid,
+              author: item.author,
+              timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
+              
+              // --- THE CRITICAL FIX ---
+              // Look for 'description' (New NFT format). 
+              // If missing, look for 'content' (Old format).
+              content: jsonContent.description || jsonContent.content || "No Text",
+              
+              // Get the image if it exists
+              image: jsonContent.image || null,
+              
+              userImage: "https://ui-avatars.com/api/?name=" + item.author + "&background=random"
             });
-        } catch (e) {
-            console.error("Error fetching IPFS content for CID:", cid);
+          } catch (error) {
+            console.error("Error loading post:", item.cid, error);
+            // If a post fails to load, we skip it instead of crashing the app
+          }
         }
+
+        setPosts(loadedPosts);
+        
+      } catch (error) {
+        console.error("Blockchain Load Error:", error);
       }
-      setPosts(loadedPosts.reverse());
-    } catch (error) {
-      console.error("Error loading blockchain posts:", error);
-    }
-  };
+    };
 
   // NEW FUNCTION: Load Following List
   const loadFollowing = async (provider) => {
-try {
+    try {
         // HATA BURADAYDI: Provider yerine Signer kullanmalıyız
         // Çünkü 'getMyFollowing' fonksiyonu 'msg.sender'ı kullanıyor.
         const signer = await provider.getSigner(); 
@@ -125,27 +157,60 @@ try {
   };
 
   // 5. Create Post
-  const createPost = async (e) => {
+  const createPost = async (e, file) => {
     e.preventDefault();
-    if (!postContent || !account) return;
+    
+    if (!account){
+      alert("Please connect to your wallet first");
+      return;
+    }
+
+    if (!postContent && !file) return;
 
     try {
       setStatus("Uploading to IPFS...");
-      const newPostJson = { content: postContent };
-      const { cid } = await ipfsClient.add(JSON.stringify(newPostJson));
-      const cidString = cid.toString();
+      let imageCid = null;
+      if (file){
+        try{
+          const added = await ipfsClient.add(file);
+          imageCid = `https://ipfs.io/ipfs/${added.path}`;
+          console.log("image ipfs url:", imageCid);
+        } catch (err) {
+          console.error("image upload failed:", err);
+          setStatus("Image Upload Failed");
+          return;
+        }
+      }
+
+      const metadata = {
+        name: "FairNet Post",
+        description: postContent,
+        image: imageCid,
+        attributes: [
+          {trait_type: "Author", value: account},
+          {trait_type: "Timestamp", value: new Date().toISOString()}
+        ]
+      };
+
+      const metadataResult = await ipfsClient.add(JSON.stringify(metadata));
+      const finalCid = metadataResult.path;
       
+      console.log("final metadata cid:", finalCid);
+
       setStatus("Waiting for Wallet Signature...");
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
 
-      const tx = await contract.createPost(cidString);
+      const tx = await contract.createPost(finalCid);
+      
       setStatus("Mining Transaction...");
       await tx.wait(); 
 
       setStatus("Post Published!");
-      setPostContent('');
+      setPostContent(''); // Clear text input
+      
+      // Reload posts immediately to see changes
       loadBlockchainPosts(provider);
 
     } catch (error) {
