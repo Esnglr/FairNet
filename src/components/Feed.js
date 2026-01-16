@@ -3,7 +3,7 @@ import '../style.css';
 import { Link } from 'react-router-dom';
 
 // Added 'following' to props
-const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following }) => {
+const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account}) => {
   return (
     <div className="middle">
       <form className="create-post" onSubmit={createPost}>
@@ -42,7 +42,9 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                           </h3>
                                       </Link>                                    
                                     {/* LOGIC: If following, show Gray button. If not, show Blue button. */}
-                                    {isFollowing ? (
+                                    {post.author.toLowerCase() === account.toLowerCase() ? (
+                                        null
+                                    ) : isFollowing ? (
                                         <button 
                                             className="btn" 
                                             style={{padding: '2px 10px', fontSize: '0.7rem', background: 'gray', cursor: 'default', color: 'white'}}
