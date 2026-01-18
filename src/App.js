@@ -156,11 +156,14 @@ const loadBlockchainPosts = async () => {
             id: i,
             cid: item.cid,
             author: item.author,
+            owner: item.owner,
             timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
             content: jsonContent.description || jsonContent.content || "No Text",
             image: jsonContent.image || null,
             userImage: "https://ui-avatars.com/api/?name=" + item.author + "&background=random",
-            isMinted: item.isMinted
+            isMinted: item.isMinted,
+            price: ethers.formatEther(item.price), // Convert Wei to ETH string (e.g., "0.5")
+            forSale: item.forSale
           });
         } catch (error) {
           console.error("Error loading post:", item.cid, error);
@@ -285,6 +288,53 @@ const loadBlockchainPosts = async () => {
     }
   };
 
+// --- DAY 3: LIST FOR SALE ---
+  const listNft = async (postId, priceInEth) => {
+    try {
+      if (!priceInEth) return alert("Please enter a price");
+      setStatus("Listing NFT for sale...");
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+
+      // Convert "0.1" ETH to Wei
+      const priceInWei = ethers.parseEther(priceInEth);
+      
+      const tx = await contract.listNft(postId, priceInWei);
+      await tx.wait();
+      
+      setStatus("NFT Listed for Sale! 💰");
+      loadBlockchainPosts(provider);
+    } catch (error) {
+      console.error("Listing failed", error);
+      setStatus("Listing Failed");
+    }
+  };
+
+  // --- DAY 3: BUY NFT ---
+  const buyNft = async (postId, priceInEth) => {
+    try {
+      setStatus("Buying NFT... Confirm Transaction 💳");
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+
+      const priceInWei = ethers.parseEther(priceInEth);
+
+      // Send the transaction with Value (Money) attached
+      const tx = await contract.buyNft(postId, { value: priceInWei });
+      await tx.wait();
+      
+      setStatus("NFT Purchased! Ownership Transferred 🚀");
+      loadBlockchainPosts(provider);
+    } catch (error) {
+      console.error("Purchase failed", error);
+      setStatus("Purchase Failed");
+    }
+  };
+
 
   // 6. Follow User
   const followUser = async (authorAddress) => {
@@ -354,6 +404,8 @@ const loadBlockchainPosts = async () => {
                   following={following} 
                   account={account}
                   mintNft={mintNft}
+                  listNft={listNft}
+                  buyNft={buyNft}
                 />
               } />
               

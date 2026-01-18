@@ -1,18 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom'; // Link ve useParams ekledik
+import { useParams, Link } from 'react-router-dom';
 import { ethers } from 'ethers'; 
 import '../style.css';
 
 const Profile = ({ posts, account, following }) => {
-  const { userAddress } = useParams(); // URL'deki adresi yakala (varsa)
+  const { userAddress } = useParams(); // URL params
   
-  // EĞER URL'de adres varsa onu kullan, YOKSA giriş yapmış kişiyi (account) kullan
-  // Büyük/küçük harf duyarlılığı olmasın diye lowercase yapıyoruz
+  // Determine target address
   const targetAddress = userAddress ? userAddress.toLowerCase() : (account ? account.toLowerCase() : null);
 
   const [balance, setBalance] = useState('Loading...');
+  const [activeTab, setActiveTab] = useState('created'); // 'created' or 'collected'
 
-  // Bakiye Çekme (Hedefteki kişinin bakiyesi)
+  // Fetch Balance
   useEffect(() => {
     const getBalance = async () => {
       if (targetAddress && window.ethereum) {
@@ -22,7 +22,7 @@ const Profile = ({ posts, account, following }) => {
           const balanceEth = ethers.formatEther(balanceWei); 
           setBalance(parseFloat(balanceEth).toFixed(4)); 
         } catch (err) {
-          console.error("Bakiye hatası:", err);
+          console.error("Balance Error:", err);
           setBalance("Hidden");
         }
       }
@@ -30,14 +30,25 @@ const Profile = ({ posts, account, following }) => {
     getBalance();
   }, [targetAddress]);
 
-  if (!targetAddress) return <div className="middle"><h3>Lütfen cüzdan bağlayın.</h3></div>;
+  if (!targetAddress) return <div className="middle"><h3>Please connect wallet.</h3></div>;
 
-  // Sadece HEDEF KİŞİNİN postlarını filtrele
-  const profilePosts = posts.filter(post => 
+  // --- DAY 3 FILTERS ---
+  
+  // 1. CREATED: Author is target (regardless of who owns it now)
+  const createdPosts = posts.filter(post => 
     post.author && post.author.toLowerCase() === targetAddress
   );
 
-  // Bu profil benim mi?
+  // 2. COLLECTED: Owner is target, BUT Author is NOT target (Bought items)
+  // (We check post.owner exists first to be safe)
+  const collectedPosts = posts.filter(post => 
+    post.owner && 
+    post.owner.toLowerCase() === targetAddress && 
+    post.author.toLowerCase() !== targetAddress
+  );
+
+  // Decide which list to show based on Tab
+  const displayPosts = activeTab === 'created' ? createdPosts : collectedPosts;
   const isMyProfile = account && targetAddress === account.toLowerCase();
 
   return (
@@ -56,14 +67,19 @@ const Profile = ({ posts, account, following }) => {
                 <h2 style={{marginTop: '15px', color: 'var(--color-dark)'}}>
                     {isMyProfile ? "My Profile" : "User Profile"}
                 </h2>
-                <p className="text-muted">
+                <p className="text-muted" style={{wordBreak: 'break-all', fontSize: '0.8rem'}}>
                     {targetAddress}
                 </p>
                 
-                <div style={{marginTop: '30px', display: 'flex', justifyContent: 'center', gap: '40px'}}>
+                {/* Stats Row */}
+                <div style={{marginTop: '30px', display: 'flex', justifyContent: 'center', gap: '30px'}}>
                     <div style={{textAlign: 'center'}}>
-                        <h5 className="text-muted">Posts</h5>
-                        <h4 style={{color: 'var(--color-dark)'}}>{profilePosts.length}</h4>
+                        <h5 className="text-muted">Created</h5>
+                        <h4 style={{color: 'var(--color-dark)'}}>{createdPosts.length}</h4>
+                    </div>
+                    <div style={{textAlign: 'center'}}>
+                        <h5 className="text-muted">Collected</h5>
+                        <h4 style={{color: 'var(--color-dark)'}}>{collectedPosts.length}</h4>
                     </div>
                     <div style={{textAlign: 'center'}}>
                         <h5 className="text-muted">Balance</h5>
@@ -73,45 +89,84 @@ const Profile = ({ posts, account, following }) => {
             </div>
         </div>
 
-        {/* --- POST LIST --- */}
-        <h3 style={{marginTop: '20px', marginBottom: '10px', color: 'var(--color-dark)'}}>
-            {isMyProfile ? "My Activity" : "User Activity"}
-        </h3>
+        {/* --- TABS SECTION (New) --- */}
+        <div style={{display: 'flex', justifyContent: 'space-around', margin: '20px 0', background: 'var(--color-white)', padding: '10px', borderRadius: 'var(--card-border-radius)'}}>
+            <button 
+                onClick={() => setActiveTab('created')}
+                className="btn"
+                style={{
+                    background: activeTab === 'created' ? 'var(--color-primary)' : 'transparent',
+                    color: activeTab === 'created' ? 'white' : 'var(--color-gray)',
+                    width: '45%'
+                }}
+            >
+                🎨 Created
+            </button>
+            <button 
+                onClick={() => setActiveTab('collected')}
+                className="btn"
+                style={{
+                    background: activeTab === 'collected' ? 'var(--color-primary)' : 'transparent',
+                    color: activeTab === 'collected' ? 'white' : 'var(--color-gray)',
+                    width: '45%'
+                }}
+            >
+                💼 Collected
+            </button>
+        </div>
         
+        {/* --- POST LIST (Based on Active Tab) --- */}
         <div className="feeds">
-            {profilePosts.length === 0 ? (
+            {displayPosts.length === 0 ? (
                 <div className="feed">
                     <div className="content" style={{textAlign: 'center', padding: '30px'}}>
-                        <p className="text-muted">No posts yet.</p>
+                        <p className="text-muted">No {activeTab} items found.</p>
                     </div>
                 </div>
             ) : (
-                profilePosts.map((post, index) => (
+                displayPosts.map((post, index) => (
                     <div className="feed" key={index}>
                         <div className="head">
                             <div className="user">
                                 <div className="profile-photo">
+                                    {/* If Collected, show Original Artist's photo. If Created, show Mine. */}
                                     <img src={post.userImage} alt="profile" />
                                 </div>
                                 <div className="ingo">
-                                    <h3>{isMyProfile ? "You" : "User"}</h3>
-                                    <small>{new Date(post.timestamp).toLocaleString()}</small>
+                                    <h3 style={{display:'flex', alignItems:'center', gap:'5px'}}>
+                                        {post.author.toLowerCase() === targetAddress ? "You" : 
+                                         (post.author.slice(0,6) + "...")} 
+                                        
+                                        {/* BADGES */}
+                                        {post.isMinted && <span style={{fontSize:'0.6rem', background:'#eee', padding:'2px 6px', borderRadius:'10px'}}>💎 Minted</span>}
+                                        {post.forSale && <span style={{fontSize:'0.6rem', background:'green', color:'white', padding:'2px 6px', borderRadius:'10px'}}>🏷️ {post.price} ETH</span>}
+                                    </h3>
+                                    
+                                    {/* Subtitle logic */}
+                                    <small>
+                                        {activeTab === 'collected' 
+                                            ? <span>✍️ Original Artist: <Link to={`/profile/${post.author}`}>{post.author.substring(0,6)}...</Link></span> 
+                                            : new Date(post.timestamp).toLocaleString()
+                                        }
+                                    </small>
                                 </div>
                             </div>
                         </div>
+
                         <div className="content">
                             <p>{post.content}</p>
+                            {post.image && (
+                                <div style={{marginTop: '10px', borderRadius: '10px', overflow: 'hidden'}}>
+                                    <img src={post.image} alt="content" style={{width: '100%', borderRadius: '10px'}}/>
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))
             )}
         </div>
 
-        {/* --- FOLLOWING LIST --- */}
-        {/* Bu listeyi SADECE kendi profilindeyken gösterelim. 
-            Çünkü 'following' verisi şu an sadece SENİN takip ettiklerini içeriyor. 
-            Başkasına bakarken senin listeni görmek saçma olur. */}
-        
+        {/* --- FOLLOWING LIST (Only for My Profile) --- */}
         {isMyProfile && (
             <>
                 <h3 style={{marginTop: '30px', marginBottom: '10px', color: 'var(--color-dark)'}}>
@@ -121,7 +176,6 @@ const Profile = ({ posts, account, following }) => {
                 <div className="feeds">
                     {following && following.length > 0 ? (
                         [...new Set(following)].map((userAddr, index) => (
-                            // TIKLANABİLİR YAPMAK İÇİN LINK KULLANIYORUZ
                             <Link to={`/profile/${userAddr}`} key={index} style={{textDecoration: 'none', color: 'inherit'}}>
                                 <div className="feed" style={{padding: '10px', cursor: 'pointer', transition: 'all 300ms ease'}}>
                                     <div className="user" style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
@@ -129,7 +183,6 @@ const Profile = ({ posts, account, following }) => {
                                             <img src={`https://ui-avatars.com/api/?name=${userAddr}&background=random`} alt="user" />
                                         </div>
                                         <div>
-                                            {/* Adresi biraz kısaltıp gösterelim */}
                                             <h5 style={{color: 'var(--color-dark)'}}>
                                                 {userAddr.substring(0, 20)}...
                                             </h5>

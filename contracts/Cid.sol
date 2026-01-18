@@ -1,82 +1,121 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-// 1. Import the NFT Standard
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 
-// 2. Inherit from ERC721URIStorage (Now it's an NFT contract + Social Network)
 contract Cid is ERC721URIStorage {
     
-    // Counter for NFT IDs (Simple integer instead of using a library)
     uint256 private _nextTokenId;
 
-    // --- YOUR DATA STRUCTURES (Kept Safe) ---
     struct Post {
         uint id;
-        address author;
+        address author; // 🎨 The Original Creator (Never changes)
+        address owner;  // 💼 The Current Owner (Changes when sold)
         string cid;
         uint timestamp;
         bool isMinted;
+        uint price;
+        bool forSale;
     }
 
     Post[] public posts;
+    
+    // --- YOUR ORIGINAL MAPPINGS (Kept Safe) ---
     mapping(address => address[]) public following;
-    mapping(uint => uint) public postToTokenId; // Maps Post ID -> NFT Token ID
+    mapping(uint => uint) public postToTokenId; 
 
     // --- EVENTS ---
     event PostCreated(uint postId, address author, string cid, uint timestamp);
     event UserFollowed(address follower, address followed);
-    event PostMinted(uint postId, uint tokenId, address owner); // New Event for Day 2
+    event PostMinted(uint postId, uint tokenId, address owner);
+    event PostListed(uint postId, uint price);
+    event PostSold(uint postId, address buyer, uint price);
 
-    // 3. Constructor: Name your NFT Collection "FairNet"
     constructor() ERC721("FairNet", "FNET") {}
 
-    // --- YOUR ORIGINAL FUNCTIONS ---
-
+    // --- 1. CREATE POST (Updated) ---
     function createPost(string memory _cid) public {
         uint postId = posts.length;
-        // Create post with isMinted = false
-        posts.push(Post(postId, msg.sender, _cid, block.timestamp, false));
+        
+        // Initialize: Author = You, Owner = You
+        posts.push(Post(postId, msg.sender, msg.sender, _cid, block.timestamp, false, 0, false));
+        
         emit PostCreated(postId, msg.sender, _cid, block.timestamp);
     }
 
+    // --- 2. GET ALL POSTS (Kept Safe) ---
     function getAllPosts() public view returns (Post[] memory) {
         return posts;
     }
 
+    // --- 3. FOLLOW USER (Kept Safe) ---
     function followUser(address _userToFollow) public {
         require(_userToFollow != msg.sender, "Cannot follow yourself");
         following[msg.sender].push(_userToFollow);
         emit UserFollowed(msg.sender, _userToFollow);
     }
 
+    // --- 4. GET FOLLOWING (Kept Safe) ---
     function getMyFollowing() public view returns (address[] memory) {
         return following[msg.sender];
     }
 
-    // --- NEW: THE MINT FUNCTION (Day 2 Logic) ---
+    // --- 5. MINT NFT (Kept Safe) ---
     function mintPost(uint _postId) public returns (uint256) {
-        // Validation checks
         require(_postId < posts.length, "Post does not exist");
+        // Only the ORIGINAL AUTHOR can mint
         require(posts[_postId].author == msg.sender, "Only the author can mint this");
         require(!posts[_postId].isMinted, "Post already minted");
 
-        // 1. Increment Token ID
         _nextTokenId++;
         uint256 newItemId = _nextTokenId;
 
-        // 2. Mint the NFT to the user
         _mint(msg.sender, newItemId);
-        
-        // 3. Attach the IPFS link to the NFT (This makes the image appear on OpenSea!)
         _setTokenURI(newItemId, posts[_postId].cid);
 
-        // 4. Update the struct so it can't be minted again
         posts[_postId].isMinted = true;
         postToTokenId[_postId] = newItemId;
 
         emit PostMinted(_postId, newItemId, msg.sender);
 
         return newItemId;
+    }
+
+    // --- 6. LIST FOR SALE (Updated check) ---
+    function listNft(uint _postId, uint _price) public {
+        require(posts[_postId].isMinted, "Must be minted first");
+        // Check if the caller is the CURRENT OWNER
+        require(posts[_postId].owner == msg.sender, "You don't own this NFT");
+        require(_price > 0, "Price must be greater than 0");
+
+        posts[_postId].price = _price;
+        posts[_postId].forSale = true;
+
+        emit PostListed(_postId, _price);
+    }
+
+    // --- 7. BUY NFT (Fixed Logic) ---
+    function buyNft(uint _postId) public payable {
+        require(posts[_postId].forSale, "Item not for sale");
+        require(msg.value >= posts[_postId].price, "Not enough ETH sent");
+        
+        // Get the current seller from our struct
+        address seller = posts[_postId].owner;
+        require(seller != msg.sender, "You already own this!");
+
+        // A. Transfer NFT: Seller -> Buyer
+        uint tokenId = postToTokenId[_postId];
+        _transfer(seller, msg.sender, tokenId);
+
+        // B. Pay the Seller
+        payable(seller).transfer(msg.value);
+
+        // C. Update the Post Status
+        posts[_postId].forSale = false;
+        
+        // CRITICAL FIX: Update OWNER, keeping AUTHOR the same
+        posts[_postId].owner = msg.sender; 
+
+        emit PostSold(_postId, msg.sender, posts[_postId].price);
     }
 }

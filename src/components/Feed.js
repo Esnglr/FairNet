@@ -2,9 +2,11 @@ import React, {useState} from 'react';
 import '../style.css';
 import { Link } from 'react-router-dom';
 
-// 1. ADD 'mintNft' TO PROPS
-const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft }) => {
+// 1. UPDATED PROPS: Added listNft and buyNft
+const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft}) => {
     const [file, setFile] = useState(null);
+    // 2. NEW STATE: To track the price input for each post
+    const [sellPrice, setSellPrice] = useState({});
     
     return (
     <div className="middle">
@@ -58,7 +60,7 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       </h3>
                                   </Link>                      
                                     
-                                  {/* --- FOLLOW BUTTON LOGIC (Your Original Code) --- */}
+                                  {/* --- FOLLOW BUTTON LOGIC --- */}
                                   {isMyPost ? (
                                       null 
                                   ) : isFollowing ? (
@@ -79,41 +81,49 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       </button>
                                   )}
 
-                                  {/* --- NEW: MINT BUTTON LOGIC (Day 2 Addition) --- */}
-                                  {/* Only show this button if it IS my post */}
+                                  {/* --- MARKETPLACE LOGIC (Day 3 Update) --- */}
+
+                                  {/* CASE 1: I am the owner */}
                                   {isMyPost && (
                                       !post.isMinted ? (
-                                          <button 
-                                              className="btn" 
-                                              style={{
-                                                  marginLeft: '5px', 
-                                                  background: 'linear-gradient(45deg, #FFD700, #FFA500)', 
-                                                  color: 'black', 
-                                                  border: 'none',
-                                                  padding: '2px 10px',
-                                                  fontSize: '0.7rem',
-                                                  fontWeight: 'bold',
-                                                  cursor: 'pointer',
-                                                  borderRadius: '20px'
-                                              }}
-                                              onClick={() => mintNft(post.id)}
-                                          >
+                                          // Not Minted -> Show Mint Button
+                                          <button className="btn" style={{background: 'gold', color:'black', marginLeft:'10px', border:'none', fontSize:'0.7rem', padding:'3px 10px', borderRadius:'15px', cursor:'pointer'}} 
+                                              onClick={() => mintNft(post.id)}>
                                               💎 Mint NFT
                                           </button>
                                       ) : (
-                                          <span style={{
-                                              marginLeft: '5px', 
-                                              fontSize: '0.7rem', 
-                                              background: '#f0f0f0', 
-                                              padding: '2px 8px', 
-                                              borderRadius: '10px',
-                                              color: '#555',
-                                              border: '1px solid #ddd'
-                                          }}>
-                                              ✅ Verified NFT
-                                          </span>
+                                          // Minted -> Check if For Sale
+                                          !post.forSale ? (
+                                              <div style={{display:'inline-flex', marginLeft:'10px', gap:'5px', alignItems:'center'}}>
+                                                  <input 
+                                                      type="number" 
+                                                      placeholder="ETH" 
+                                                      style={{width:'50px', padding:'2px', fontSize:'0.7rem', border:'1px solid #ccc', borderRadius:'5px'}}
+                                                      onChange={(e) => setSellPrice({...sellPrice, [post.id]: e.target.value})}
+                                                  />
+                                                  <button className="btn btn-primary" style={{fontSize:'0.7rem', padding:'2px 8px', height:'fit-content'}}
+                                                      onClick={() => listNft(post.id, sellPrice[post.id])}>
+                                                      Sell
+                                                  </button>
+                                              </div>
+                                          ) : (
+                                              <span style={{marginLeft:'10px', background:'#eee', padding:'2px 8px', borderRadius:'10px', fontSize:'0.7rem', border:'1px solid #ddd'}}>
+                                                  🏷️ For Sale: {post.price} ETH
+                                              </span>
+                                          )
                                       )
                                   )}
+
+                                  {/* CASE 2: I am NOT the owner */}
+                                  {!isMyPost && post.forSale && (
+                                      <button className="btn btn-primary" 
+                                          style={{marginLeft:'10px', background:'green', border:'none', fontSize:'0.7rem', padding:'3px 10px'}}
+                                          onClick={() => buyNft(post.id, post.price)}>
+                                          Buy for {post.price} ETH
+                                      </button>
+                                  )}
+                                  
+                                  {/* ------------------------------------------- */}
 
                                 </div>
                                 <small>{new Date(post.timestamp).toLocaleString()}</small>
