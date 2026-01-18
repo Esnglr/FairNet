@@ -14,7 +14,7 @@ import Profile from './components/Profile';
 const ipfsClient = create({ url: 'http://127.0.0.1:5001/api/v0' });
 
 // 2. Blockchain Configuration
-const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3"; 
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 function App() {
   const [postContent, setPostContent] = useState('');
@@ -45,10 +45,48 @@ function App() {
     }
   }
 
+  // MetaMask'i Zorla Doğru Ağa Geçirme Fonksiyonu
+  const switchHardhatNetwork = async () => {
+    const chainId = "0x7A69"; // 31337 (Hardhat Default Chain ID)
+    
+    try {
+      await window.ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: chainId }],
+      });
+    } catch (error) {
+      // Eğer bu ağ ekli değilse, zorla ekletiyoruz:
+      if (error.code === 4902) {
+        try {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: chainId,
+                chainName: "Hardhat Localhost Fix",
+                rpcUrls: ["http://127.0.0.1:8545"],
+                nativeCurrency: {
+                  name: "ETH",
+                  symbol: "ETH",
+                  decimals: 18,
+                },
+              },
+            ],
+          });
+        } catch (addError) {
+          console.error("Ağ eklenemedi:", addError);
+        }
+      } else {
+        console.error("Ağ değiştirilemedi:", error);
+      }
+    }
+  };
+
   // 3. Connect to MetaMask
   const connectWallet = async () => {
     if (window.ethereum) {
       try {
+        await switchHardhatNetwork();
         const provider = new ethers.BrowserProvider(window.ethereum);
         await provider.send("eth_requestAccounts", []);
         const signer = await provider.getSigner();
@@ -57,7 +95,7 @@ function App() {
         setAccount(address);
         setStatus('Wallet Connected');
         
-        loadBlockchainPosts(provider);
+        loadBlockchainPosts();
         // NEW: Load following list immediately upon connection
         loadFollowing(provider);
 
@@ -70,71 +108,71 @@ function App() {
     }
   };
 
-  // 4. Load Posts
-  const loadBlockchainPosts = async (provider) => {
-      try {
-        const signer = await provider.getSigner();
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
-        
-        // 1. Get all posts from the smart contract
-        const allPosts = await contract.getAllPosts();
-        console.log("raw blockchain data:", allPosts);
-        
-        // 2. Fetch the "My Following" list (for the button logic)
-        let myFollowing = [];
-        try {
-          const rawFollowing = await contract.getMyFollowing();
-          // Convert all addresses to lowercase to avoid "0xABC" vs "0xabc" bugs
-          myFollowing = rawFollowing.map(addr => addr.toLowerCase());
-        } catch (err) {
-          console.warn("Could not fetch following list", err);
-        }
-        setFollowing(myFollowing);
-
-        const loadedPosts = [];
-
-        // 3. Loop through every post and fetch its data from IPFS
-        for (let i = allPosts.length - 1; i >= 0; i--) {
-          const item = allPosts[i];
-          
+ // 4. Load Posts (MetaMask BYPASS EDİLMİŞ VERSİYON)
+const loadBlockchainPosts = async () => {
+    try {
+      // BURASI KRİTİK: MetaMask yerine direkt Hardhat'e bağlanıyoruz
+      // Böylece MetaMask'in cache/network saçmalıklarıyla uğraşmıyoruz.
+      const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
+      
+      // Signer'a gerek yok çünkü sadece okuma yapıyoruz
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, provider);
+      
+      // 1. Get all posts directly from the node
+      const allPosts = await contract.getAllPosts();
+      console.log("raw blockchain data (Direct Provider):", allPosts);
+      
+      // 2. Fetch the "My Following" list
+      // BURADA DİKKAT: Takip verisi kişiye özeldir. 
+      // Eğer cüzdan bağlı değilse bu kısım boş dönebilir veya hata verebilir.
+      // O yüzden burayı try-catch ile yumuşatıyoruz.
+      let myFollowing = [];
+      if (window.ethereum) {
           try {
-            // Fetch the JSON data from IPFS
-            // We use the gateway 'https://ipfs.io/ipfs/' because it's public
-            // If it's slow, you can change it to 'http://127.0.0.1:8080/ipfs/'
-            const response = await fetch(`http://127.0.0.1:8080/ipfs/${item.cid}`);
-            
-            if (!response.ok) throw new Error("IPFS Fetch failed");
-            
-            const jsonContent = await response.json();
-
-            loadedPosts.push({
-              id: i, // We need the ID for keys
-              cid: item.cid,
-              author: item.author,
-              timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
-              
-              // --- THE CRITICAL FIX ---
-              // Look for 'description' (New NFT format). 
-              // If missing, look for 'content' (Old format).
-              content: jsonContent.description || jsonContent.content || "No Text",
-              
-              // Get the image if it exists
-              image: jsonContent.image || null,
-              
-              userImage: "https://ui-avatars.com/api/?name=" + item.author + "&background=random"
-            });
-          } catch (error) {
-            console.error("Error loading post:", item.cid, error);
-            // If a post fails to load, we skip it instead of crashing the app
+             // Sadece burası için browser provider kullanıyoruz ki "benim" takip ettiklerimi bulsun
+             const browserProvider = new ethers.BrowserProvider(window.ethereum);
+             const signer = await browserProvider.getSigner();
+             const signedContract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+             const rawFollowing = await signedContract.getMyFollowing();
+             myFollowing = rawFollowing.map(addr => addr.toLowerCase());
+          } catch (err) {
+             console.warn("Following listesi çekilemedi (Cüzdan bağlı olmayabilir):", err);
           }
-        }
-
-        setPosts(loadedPosts);
-        
-      } catch (error) {
-        console.error("Blockchain Load Error:", error);
       }
-    };
+      setFollowing(myFollowing);
+
+      const loadedPosts = [];
+
+      // 3. Loop through every post and fetch its data from IPFS
+      for (let i = allPosts.length - 1; i >= 0; i--) {
+        const item = allPosts[i];
+        
+        try {
+          const response = await fetch(`http://127.0.0.1:8080/ipfs/${item.cid}`);
+          if (!response.ok) throw new Error("IPFS Fetch failed");
+          const jsonContent = await response.json();
+
+          loadedPosts.push({
+            id: i,
+            cid: item.cid,
+            author: item.author,
+            timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
+            content: jsonContent.description || jsonContent.content || "No Text",
+            image: jsonContent.image || null,
+            userImage: "https://ui-avatars.com/api/?name=" + item.author + "&background=random",
+            isMinted: item.isMinted
+          });
+        } catch (error) {
+          console.error("Error loading post:", item.cid, error);
+        }
+      }
+
+      setPosts(loadedPosts);
+      
+    } catch (error) {
+      console.error("Blockchain Load Error (Direct Provider):", error);
+    }
+  };
 
   // NEW FUNCTION: Load Following List
   const loadFollowing = async (provider) => {
@@ -219,6 +257,35 @@ function App() {
     }
   };
 
+  // --- DAY 2: MINT FUNCTION ---
+  const mintNft = async (postId) => {
+    try {
+      if (!account) return alert("Please connect wallet first");
+      
+      setStatus("Minting NFT... Please confirm in Wallet 🦊");
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+
+      // 1. Call the Smart Contract
+      const tx = await contract.mintPost(postId);
+      
+      setStatus("Waiting for block confirmation... ⏳");
+      await tx.wait(); // Wait for the mining to finish
+
+      setStatus("NFT Minted Successfully! 💎");
+      
+      // 2. Reload posts so the button changes to "Verified"
+      loadBlockchainPosts(provider);
+      
+    } catch (error) {
+      console.error("Minting failed:", error);
+      setStatus("Minting Failed ❌ (Check console)");
+    }
+  };
+
+
   // 6. Follow User
   const followUser = async (authorAddress) => {
     if (!account) return;
@@ -286,6 +353,7 @@ function App() {
                   followUser={followUser}
                   following={following} 
                   account={account}
+                  mintNft={mintNft}
                 />
               } />
               

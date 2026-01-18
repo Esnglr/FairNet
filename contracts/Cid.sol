@@ -1,56 +1,82 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-contract Cid {
-    // 1. UPDATED STRUCT: Added 'isMinted' for Day 2
+// 1. Import the NFT Standard
+import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
+
+// 2. Inherit from ERC721URIStorage (Now it's an NFT contract + Social Network)
+contract Cid is ERC721URIStorage {
+    
+    // Counter for NFT IDs (Simple integer instead of using a library)
+    uint256 private _nextTokenId;
+
+    // --- YOUR DATA STRUCTURES (Kept Safe) ---
     struct Post {
         uint id;
         address author;
         string cid;
         uint timestamp;
-        bool isMinted; // <--- The only change to the struct
+        bool isMinted;
     }
 
     Post[] public posts;
-    
-    // 2. YOUR ORIGINAL MAPPINGS (Kept exactly as is)
     mapping(address => address[]) public following;
-    
-    // 3. NEW MAPPINGS (For Day 2 NFT Logic)
-    mapping(uint => uint) public postToTokenId;
+    mapping(uint => uint) public postToTokenId; // Maps Post ID -> NFT Token ID
 
-    // 4. NEW EVENTS (Crucial for a responsive Frontend)
+    // --- EVENTS ---
     event PostCreated(uint postId, address author, string cid, uint timestamp);
     event UserFollowed(address follower, address followed);
+    event PostMinted(uint postId, uint tokenId, address owner); // New Event for Day 2
 
-    // 5. CREATE POST (Updated to set isMinted = false)
+    // 3. Constructor: Name your NFT Collection "FairNet"
+    constructor() ERC721("FairNet", "FNET") {}
+
+    // --- YOUR ORIGINAL FUNCTIONS ---
+
     function createPost(string memory _cid) public {
         uint postId = posts.length;
-        
-        // We push 'false' at the end because it's not an NFT yet
+        // Create post with isMinted = false
         posts.push(Post(postId, msg.sender, _cid, block.timestamp, false));
-        
-        // Emit event so frontend sees it instantly
         emit PostCreated(postId, msg.sender, _cid, block.timestamp);
     }
 
-    // 6. GET ALL POSTS (Kept exactly as is)
     function getAllPosts() public view returns (Post[] memory) {
         return posts;
     }
 
-    // 7. FOLLOW USER (Kept exactly as is, added Event)
     function followUser(address _userToFollow) public {
-        require(_userToFollow != msg.sender, "You cannot follow yourself");
-        
-        // Check if already following (Optional optimization, but let's keep your logic simple)
+        require(_userToFollow != msg.sender, "Cannot follow yourself");
         following[msg.sender].push(_userToFollow);
-        
         emit UserFollowed(msg.sender, _userToFollow);
     }
 
-    // 8. GET FOLLOWING (Kept exactly as is)
     function getMyFollowing() public view returns (address[] memory) {
         return following[msg.sender];
+    }
+
+    // --- NEW: THE MINT FUNCTION (Day 2 Logic) ---
+    function mintPost(uint _postId) public returns (uint256) {
+        // Validation checks
+        require(_postId < posts.length, "Post does not exist");
+        require(posts[_postId].author == msg.sender, "Only the author can mint this");
+        require(!posts[_postId].isMinted, "Post already minted");
+
+        // 1. Increment Token ID
+        _nextTokenId++;
+        uint256 newItemId = _nextTokenId;
+
+        // 2. Mint the NFT to the user
+        _mint(msg.sender, newItemId);
+        
+        // 3. Attach the IPFS link to the NFT (This makes the image appear on OpenSea!)
+        _setTokenURI(newItemId, posts[_postId].cid);
+
+        // 4. Update the struct so it can't be minted again
+        posts[_postId].isMinted = true;
+        postToTokenId[_postId] = newItemId;
+
+        emit PostMinted(_postId, newItemId, msg.sender);
+
+        return newItemId;
     }
 }

@@ -2,12 +2,14 @@ import React, {useState} from 'react';
 import '../style.css';
 import { Link } from 'react-router-dom';
 
-// Added 'following' to props
-const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account}) => {
+// 1. ADD 'mintNft' TO PROPS
+const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft }) => {
     const [file, setFile] = useState(null);
+    
     return (
     <div className="middle">
       <form className="create-post" onSubmit={(e) => {
+        e.preventDefault(); // Prevent page refresh
         createPost(e, file);
         setFile(null)
       }}>
@@ -34,8 +36,10 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
       <div className="feeds">
         {posts.map((post, index) => {
             // Check if we are already following this author
-            // We use optional chaining (?.) and default to empty array [] just in case
             const isFollowing = following?.includes(post.author.toLowerCase());
+            
+            // Check if this post belongs to the current user
+            const isMyPost = post.author.toLowerCase() === (account ? account.toLowerCase() : '');
 
             return (
                 <div className="feed" key={index}>
@@ -46,32 +50,71 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                             </div>
                             <div className="ingo">
                                 <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
-                                  {/* İsim Tıklanabilir Olsun */}
-                                      <Link to={`/profile/${post.author}`} style={{textDecoration: 'none', color: 'inherit'}}>
-                                          <h3 style={{cursor: 'pointer'}}>
-                                              {post.author.slice(0,6)}...{post.author.slice(-4)}
-                                          </h3>
-                                      </Link>                                    
-                                    {/* LOGIC: If following, show Gray button. If not, show Blue button. */}
-                                    {post.author.toLowerCase() === account.toLowerCase() ? (
-                                        null
-                                    ) : isFollowing ? (
-                                        <button 
-                                            className="btn" 
-                                            style={{padding: '2px 10px', fontSize: '0.7rem', background: 'gray', cursor: 'default', color: 'white'}}
-                                            disabled
-                                        >
-                                            Following
-                                        </button>
-                                    ) : (
-                                        <button 
-                                            className="btn btn-primary" 
-                                            style={{padding: '2px 10px', fontSize: '0.7rem', height: 'fit-content'}}
-                                            onClick={() => followUser(post.author)}
-                                        >
-                                            Follow
-                                        </button>
-                                    )}
+                                  
+                                  {/* User Name Link */}
+                                  <Link to={`/profile/${post.author}`} style={{textDecoration: 'none', color: 'inherit'}}>
+                                      <h3 style={{cursor: 'pointer'}}>
+                                          {post.author.slice(0,6)}...{post.author.slice(-4)}
+                                      </h3>
+                                  </Link>                      
+                                    
+                                  {/* --- FOLLOW BUTTON LOGIC (Your Original Code) --- */}
+                                  {isMyPost ? (
+                                      null 
+                                  ) : isFollowing ? (
+                                      <button 
+                                          className="btn" 
+                                          style={{padding: '2px 10px', fontSize: '0.7rem', background: 'gray', cursor: 'default', color: 'white'}}
+                                          disabled
+                                      >
+                                          Following
+                                      </button>
+                                  ) : (
+                                      <button 
+                                          className="btn btn-primary" 
+                                          style={{padding: '2px 10px', fontSize: '0.7rem', height: 'fit-content'}}
+                                          onClick={() => followUser(post.author)}
+                                      >
+                                          Follow
+                                      </button>
+                                  )}
+
+                                  {/* --- NEW: MINT BUTTON LOGIC (Day 2 Addition) --- */}
+                                  {/* Only show this button if it IS my post */}
+                                  {isMyPost && (
+                                      !post.isMinted ? (
+                                          <button 
+                                              className="btn" 
+                                              style={{
+                                                  marginLeft: '5px', 
+                                                  background: 'linear-gradient(45deg, #FFD700, #FFA500)', 
+                                                  color: 'black', 
+                                                  border: 'none',
+                                                  padding: '2px 10px',
+                                                  fontSize: '0.7rem',
+                                                  fontWeight: 'bold',
+                                                  cursor: 'pointer',
+                                                  borderRadius: '20px'
+                                              }}
+                                              onClick={() => mintNft(post.id)}
+                                          >
+                                              💎 Mint NFT
+                                          </button>
+                                      ) : (
+                                          <span style={{
+                                              marginLeft: '5px', 
+                                              fontSize: '0.7rem', 
+                                              background: '#f0f0f0', 
+                                              padding: '2px 8px', 
+                                              borderRadius: '10px',
+                                              color: '#555',
+                                              border: '1px solid #ddd'
+                                          }}>
+                                              ✅ Verified NFT
+                                          </span>
+                                      )
+                                  )}
+
                                 </div>
                                 <small>{new Date(post.timestamp).toLocaleString()}</small>
                             </div>
