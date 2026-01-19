@@ -326,6 +326,25 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "cid",
+          "type": "string"
+        }
+      ],
+      "name": "ProfileUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "from",
           "type": "address"
         },
@@ -362,25 +381,6 @@
         }
       ],
       "name": "UserFollowed",
-      "type": "event"
-    },
-    {
-      "anonymous": false,
-      "inputs": [
-        {
-          "indexed": true,
-          "internalType": "address",
-          "name": "user",
-          "type": "address"
-        },
-        {
-          "indexed": false,
-          "internalType": "string",
-          "name": "newName",
-          "type": "string"
-        }
-      ],
-      "name": "UsernameSet",
       "type": "event"
     },
     {
@@ -750,6 +750,25 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "profiles",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "from",
           "type": "address"
         },
@@ -819,11 +838,11 @@
       "inputs": [
         {
           "internalType": "string",
-          "name": "_name",
+          "name": "_cid",
           "type": "string"
         }
       ],
-      "name": "setUsername",
+      "name": "setProfile",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -913,25 +932,6 @@
       "name": "transferFrom",
       "outputs": [],
       "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        }
-      ],
-      "name": "usernames",
-      "outputs": [
-        {
-          "internalType": "string",
-          "name": "",
-          "type": "string"
-        }
-      ],
-      "stateMutability": "view",
       "type": "function"
     }
 ]

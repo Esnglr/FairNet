@@ -3,11 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import { ethers } from 'ethers'; 
 import '../style.css';
 
-const Profile = ({ posts, account, following, usernames, updateProfileName }) => {
-  // 1. FIX: Use 'address' to match the Route path="/profile/:address" in App.js
+const Profile = ({ posts, account, following, usernames, updateProfile }) => {
   const { address } = useParams(); 
   
-  // 2. FIX: Use 'address' here too
   // If 'address' exists in URL, use it. Otherwise, use connected 'account'.
   const targetAddress = address ? address.toLowerCase() : (account ? account.toLowerCase() : null);
 
@@ -15,11 +13,33 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
   const [activeTab, setActiveTab] = useState('created'); 
   const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newBio, setNewBio] = useState("");
+  const [newAvatar, setNewAvatar] = useState(null);
 
-  // Determine Display Name
-  const displayName = usernames && targetAddress && usernames[targetAddress] 
-    ? usernames[targetAddress] 
-    : (targetAddress ? targetAddress.slice(0,6) + "..." + targetAddress.slice(-4) : "User");
+  // --- 1. GET RAW DATA ---
+  const storedData = usernames && targetAddress ? usernames[targetAddress] : null;
+
+  // --- 2. DEFINE profileData ---
+  const profileData = (typeof storedData === 'object' && storedData !== null) 
+      ? storedData 
+      : { name: storedData, bio: "", avatar: null };
+
+  // --- 3. DEFINE displayName ---
+  const displayName = profileData.name || (targetAddress ? targetAddress.slice(0,6) + "..." : "User");
+
+  // --- HELPER: Safely get name from Object OR String ---
+  const getNameSafe = (addr) => {
+      if (!usernames || !addr) return addr ? addr.slice(0,6)+"..." : "Unknown";
+      const val = usernames[addr.toLowerCase()];
+      
+      if (!val) return addr.slice(0,6)+"...";
+      
+      // If it is an OBJECT (SSI Profile), return .name
+      if (typeof val === 'object') return val.name || "Anon";
+      
+      // If it is a STRING (Old Data), return it directly
+      return val;
+  };
 
   // Fetch Balance
   useEffect(() => {
@@ -54,7 +74,6 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
 
   const displayPosts = activeTab === 'created' ? createdPosts : collectedPosts;
   
-  // Check if this is MY profile
   const isMyProfile = account && targetAddress === account.toLowerCase();
 
   return (
@@ -65,24 +84,26 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                 
                 <div className="profile-photo" style={{width: '100px', height: '100px', margin: '0 auto'}}>
                     <img 
-                        src={`https://ui-avatars.com/api/?name=${displayName}&background=random&bold=true`} 
+                        src={profileData.avatar || `https://ui-avatars.com/api/?name=${displayName}&background=random&bold=true`} 
                         alt="Profile" 
-                        style={{width: '100%', height: '100%', borderRadius: '50%'}}
+                        style={{width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover'}}
                     />
                 </div>
                 
                 {!editing ? (
                     <div style={{marginTop: '15px'}}>
-                        <h2 style={{color: 'var(--color-dark)'}}>{displayName}</h2>
+                        <h2 style={{color: 'var(--color-dark)'}}>{profileData?.name || displayName}</h2>
+                        {/* DISPLAY BIO */}
+                        <p style={{fontSize: '0.9rem', fontStyle: 'italic'}}>{profileData?.bio || "No bio set."}</p>
                         <p className="text-muted" style={{fontSize: '0.8rem'}}>{targetAddress}</p>
                         
                         {isMyProfile && (
                             <button 
                                 className="btn btn-primary" 
-                                style={{marginTop:'10px', fontSize:'0.8rem', padding:'5px 15px'}}
+                                style={{marginTop:'10px'}}
                                 onClick={() => setEditing(true)}
                             >
-                                ✏️ Edit Name
+                                ✏️ Edit Identity
                             </button>
                         )}
                     </div>
@@ -90,16 +111,34 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                     <div style={{marginTop: '15px', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px'}}>
                         <input 
                             type="text" 
-                            placeholder="Enter new name" 
+                            placeholder="Display Name" 
                             value={newName} 
                             onChange={(e) => setNewName(e.target.value)}
-                            style={{padding:'8px', borderRadius:'5px', border:'1px solid #ccc'}}
+                            style={{padding:'8px', width: '100%', borderRadius:'5px', border:'1px solid #ccc'}}
                         />
-                        <div style={{display:'flex', gap:'10px'}}>
+                        
+                        <textarea 
+                            placeholder="Your Bio..." 
+                            value={newBio} 
+                            onChange={(e) => setNewBio(e.target.value)}
+                            style={{padding:'8px', width: '100%', borderRadius:'5px', border:'1px solid #ccc'}}
+                        />
+
+                        <label className="btn" style={{background: 'var(--color-light)', width: '100%'}}>
+                            Choose Profile Picture 📷
+                            <input 
+                                type="file" 
+                                onChange={(e) => setNewAvatar(e.target.files[0])}
+                                style={{display: 'none'}}
+                            />
+                        </label>
+                        {newAvatar && <small>{newAvatar.name}</small>}
+
+                        <div style={{display:'flex', gap:'10px', marginTop: '10px'}}>
                             <button className="btn btn-primary" onClick={() => {
-                                updateProfileName(newName);
+                                updateProfile(newName, newBio, newAvatar); 
                                 setEditing(false);
-                            }}>Save</button>
+                            }}>Save Identity</button>
                             
                             <button className="btn" style={{background:'gray', color:'white'}} onClick={() => setEditing(false)}>Cancel</button>
                         </div>
@@ -167,9 +206,8 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                                 </div>
                                 <div className="ingo">
                                     <h3 style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                                        {usernames && usernames[post.author.toLowerCase()] 
-                                            ? usernames[post.author.toLowerCase()] 
-                                            : post.author.slice(0,6)+"..."}
+                                        {/* FIX: Use getNameSafe here */}
+                                        {getNameSafe(post.author)}
                                         
                                         {post.isMinted && <span style={{fontSize:'0.6rem', background:'#eee', padding:'2px 6px', borderRadius:'10px'}}>💎 Minted</span>}
                                         {post.forSale && <span style={{fontSize:'0.6rem', background:'green', color:'white', padding:'2px 6px', borderRadius:'10px'}}>🏷️ {post.price} ETH</span>}
@@ -177,11 +215,10 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                                     
                                     <small>
                                         {activeTab === 'collected' 
-                                            ? <span>✍️ Original Artist: <Link to={`/profile/${post.author}`}>{
-                                                usernames && usernames[post.author.toLowerCase()] 
-                                                ? usernames[post.author.toLowerCase()] 
-                                                : post.author.substring(0,6)+"..."
-                                              }</Link></span> 
+                                            ? <span>✍️ Original Artist: <Link to={`/profile/${post.author}`}>
+                                                {/* FIX: Use getNameSafe here too */}
+                                                {getNameSafe(post.author)}
+                                              </Link></span> 
                                             : new Date(post.timestamp).toLocaleString()
                                         }
                                     </small>
@@ -212,7 +249,8 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                 <div className="feeds">
                     {following && following.length > 0 ? (
                         [...new Set(following)].map((userAddr, index) => {
-                             const followName = usernames && usernames[userAddr] ? usernames[userAddr] : userAddr.substring(0, 10)+"...";
+                             // FIX: Use getNameSafe here for Step 3
+                             const followName = getNameSafe(userAddr);
                              
                              return (
                                 <Link to={`/profile/${userAddr}`} key={index} style={{textDecoration: 'none', color: 'inherit'}}>

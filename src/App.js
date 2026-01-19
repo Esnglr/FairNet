@@ -135,10 +135,24 @@ function App() {
       // Fetch names in parallel
       await Promise.all(uniqueAuthors.map(async (addr) => {
           try {
-              const name = await contract.usernames(addr);
-              names[addr.toLowerCase()] = name || addr; 
+              // 1. Get CID from Contract
+              const cid = await contract.profiles(addr);
+              
+              if (cid) {
+                  // 2. Fetch JSON from IPFS
+                  const res = await fetch(`http://127.0.0.1:8080/ipfs/${cid}`);
+                  const data = await res.json();
+                  
+                  // 3. Store in State
+                  names[addr.toLowerCase()] = {
+                      name: data.name,
+                      bio: data.bio,
+                      avatar: data.avatar // Now we have a real avatar!
+                  };
+              }
           } catch (e) {
-              names[addr.toLowerCase()] = addr;
+              // Fallback if no profile exists
+              names[addr.toLowerCase()] = { name: addr, bio: "", avatar: null };
           }
       }));
       setUsernames(names); // Update State
@@ -161,34 +175,45 @@ function App() {
       const loadedPosts = [];
 
       for (let i = allPosts.length - 1; i >= 0; i--) {
-        const item = allPosts[i];
-        
-        try {
-          const response = await fetch(`http://127.0.0.1:8080/ipfs/${item.cid}`);
-          if (!response.ok) throw new Error("IPFS Fetch failed");
-          const jsonContent = await response.json();
+              const item = allPosts[i];
+              
+              try {
+                const response = await fetch(`http://127.0.0.1:8080/ipfs/${item.cid}`);
+                if (!response.ok) throw new Error("IPFS Fetch failed");
+                const jsonContent = await response.json();
 
-          // Get name for avatar generation
-          const displayName = names[item.author.toLowerCase()] || item.author;
+                // --- FIX STARTS HERE ---
+                const authorData = names[item.author.toLowerCase()];
+                
+                // 1. Get the Name safely (Handle Object vs String vs Address)
+                const authorName = authorData?.name 
+                    ? authorData.name 
+                    : (typeof authorData === 'string' ? authorData : item.author);
 
-          loadedPosts.push({
-            id: Number(item.id),
-            cid: item.cid,
-            author: item.author,
-            owner: item.owner, 
-            timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
-            content: jsonContent.description || jsonContent.content || "No Text",
-            image: jsonContent.image || null,
-            userImage: "https://ui-avatars.com/api/?name=" + displayName + "&background=random",
-            isMinted: item.isMinted,
-            price: ethers.formatEther(item.price),
-            forSale: item.forSale,
-            tipAmount: ethers.formatEther(item.tipAmount)
-          });
-        } catch (error) {
-          console.error("Error loading post:", item.cid, error);
-        }
-      }
+                // 2. Get the Avatar safely
+                const authorAvatar = authorData?.avatar; // This is the IPFS link!
+
+                loadedPosts.push({
+                  id: Number(item.id),
+                  cid: item.cid,
+                  author: item.author,
+                  owner: item.owner, 
+                  timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
+                  content: jsonContent.description || jsonContent.content || "No Text",
+                  image: jsonContent.image || null,
+                  // 3. Logic: Use Custom Avatar if exists, otherwise generate one
+                  userImage: authorAvatar ? authorAvatar : `https://ui-avatars.com/api/?name=${authorName}&background=random`,
+                  isMinted: item.isMinted,
+                  price: ethers.formatEther(item.price),
+                  forSale: item.forSale,
+                  tipAmount: ethers.formatEther(item.tipAmount)
+                });
+                // --- FIX ENDS HERE ---
+
+              } catch (error) {
+                console.error("Error loading post:", item.cid, error);
+              }
+            }
 
       setPosts(loadedPosts);
       
@@ -397,6 +422,51 @@ function App() {
     }
   };
 
+  const updateProfile = async (name, bio, avatarFile) => {
+      if (!account) return;
+      setStatus("Uploading Profile to IPFS...");
+
+      try {
+          let avatarCid = null;
+          
+          // 1. Upload Avatar Image (if a new one is selected)
+          if (avatarFile) {
+              const added = await ipfsClient.add(avatarFile);
+              avatarCid = `https://ipfs.io/ipfs/${added.path}`;
+          }
+
+          // 2. Create Identity JSON
+          // We keep the old avatar if they didn't upload a new one
+          const identityData = {
+              name: name,
+              bio: bio,
+              avatar: avatarCid 
+          };
+
+          // 3. Upload JSON to IPFS
+          const result = await ipfsClient.add(JSON.stringify(identityData));
+          const profileCid = result.path;
+
+          // 4. Store CID on Blockchain
+          setStatus("Confirming Identity on Blockchain...");
+          const provider = new ethers.BrowserProvider(window.ethereum);
+          const signer = await provider.getSigner();
+          const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+
+          const tx = await contract.setProfile(profileCid); // This matches our new Solidity function
+          await tx.wait();
+          
+          setStatus("Identity Updated! 🆔");
+          
+          // Reload to see changes
+          setTimeout(() => window.location.reload(), 1000);
+
+      } catch (error) {
+          console.error("Profile Update Error:", error);
+          setStatus("Update Failed ❌");
+      }
+  };
+
   if (!account) {
     return <Login connectWallet={connectWallet} />;
   }
@@ -409,10 +479,12 @@ function App() {
             <h2 className="logo">FairNet</h2>
             <div className="create">
               <button className="btn btn-primary">
-                  {/* Display Name if exists, otherwise address */}
-                  {usernames[account.toLowerCase()] 
-                    ? usernames[account.toLowerCase()] 
-                    : account.slice(0,6) + "..." + account.slice(-4)}
+                  {usernames[account.toLowerCase()]?.name 
+                      ? usernames[account.toLowerCase()].name   // If it's an object with a name
+                      : (typeof usernames[account.toLowerCase()] === 'string' 
+                          ? usernames[account.toLowerCase()]    // If it's just a string (old data)
+                          : account.slice(0,6) + "..." + account.slice(-4)) // Fallback
+                  }
               </button>
             </div>
           </div>
@@ -456,8 +528,8 @@ function App() {
                     posts={posts} 
                     account={account} 
                     following={following} 
-                    usernames={usernames}           // <-- Passed here
-                    updateProfileName={updateProfileName} // <-- Passed here
+                    usernames={usernames} 
+                    updateProfile={updateProfile}
                 />
               } />
             </Routes>

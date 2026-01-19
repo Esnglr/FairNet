@@ -22,7 +22,8 @@ contract Cid is ERC721URIStorage {
     Post[] public posts;
     mapping(address => address[]) public following;
     mapping(uint => uint) public postToTokenId; 
-    mapping(address => string) public usernames; 
+    mapping(address => string) public profiles; 
+
 
     // Events
     event PostCreated(uint postId, address author, string cid, uint timestamp);
@@ -30,7 +31,7 @@ contract Cid is ERC721URIStorage {
     event PostListed(uint postId, uint price);
     event PostSold(uint postId, address buyer, uint price);
     event UserFollowed(address follower, address followed);
-    event UsernameSet(address indexed user, string newName);
+    event ProfileUpdated(address indexed user, string cid);
     
     // --- NEW EVENT ---
     event PostTipped(uint postId, address from, address receiver, uint amount);
@@ -107,9 +108,9 @@ contract Cid is ERC721URIStorage {
         emit PostSold(_postId, msg.sender, posts[_postId].price);
     }
 
-    function setUsername(string memory _name) public {
-        usernames[msg.sender] = _name;
-        emit UsernameSet(msg.sender, _name);
+    function setProfile(string memory _cid) public {
+        profiles[msg.sender] = _cid;
+        emit ProfileUpdated(msg.sender, _cid);
     }
 
     function getAllPosts() public view returns (Post[] memory) {

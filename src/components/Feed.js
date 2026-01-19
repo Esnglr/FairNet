@@ -2,7 +2,6 @@ import React, {useState} from 'react';
 import '../style.css';
 import { Link } from 'react-router-dom';
 
-// 1. UPDATED PROPS: Added 'tipPost' to the list
 const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft, usernames, tipPost}) => {
     const [file, setFile] = useState(null);
     const [sellPrice, setSellPrice] = useState({});
@@ -10,13 +9,33 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
     return (
     <div className="middle">
       <form className="create-post" onSubmit={(e) => {
-        e.preventDefault(); // Prevent page refresh
+        e.preventDefault(); 
         createPost(e, file);
         setFile(null)
       }}>
         <div className="profile-photo">
-           {/* Update "You" avatar to use your own name if set */}
-           <img src={`https://ui-avatars.com/api/?name=${usernames && account && usernames[account.toLowerCase()] ? usernames[account.toLowerCase()] : "You"}&background=random`} alt="profile"/>
+           {/* --- FIX START: Display Current User's Custom Avatar --- */}
+           {(() => {
+               // 1. Get my data safely
+               const myData = usernames && account ? usernames[account.toLowerCase()] : null;
+               
+               // 2. Get Name (Handle Object vs String vs Null)
+               const myName = myData?.name 
+                    ? myData.name 
+                    : (typeof myData === 'string' ? myData : "You");
+               
+               // 3. Get Avatar Link (if exists)
+               const myAvatar = myData?.avatar;
+               
+               return (
+                 <img 
+                    // Use Custom Avatar if exists, otherwise generate generic one
+                    src={myAvatar || `https://ui-avatars.com/api/?name=${myName}&background=random`} 
+                    alt="profile"
+                 />
+               );
+           })()}
+           {/* --- FIX END --- */}
         </div>
         <input 
             type="text" 
@@ -37,37 +56,33 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
 
       <div className="feeds">
         {posts.map((post, index) => {
-            // Check if we are already following this author
             const isFollowing = following?.includes(post.author.toLowerCase());
-            
-            // Check if this post belongs to the current user
             const isMyPost = post.author.toLowerCase() === (account ? account.toLowerCase() : '');
 
-            // --- NAME LOOKUP LOGIC ---
-            // If name exists in dictionary, use it. Otherwise, truncate address.
-            const authorName = usernames && usernames[post.author.toLowerCase()] 
-                ? usernames[post.author.toLowerCase()] 
-                : `${post.author.slice(0,6)}...${post.author.slice(-4)}`;
+            // Handle Author Name Display
+            let authorName = `${post.author.slice(0,6)}...${post.author.slice(-4)}`;
+            if (usernames && usernames[post.author.toLowerCase()]) {
+                const data = usernames[post.author.toLowerCase()];
+                authorName = data.name ? data.name : (typeof data === 'string' ? data : authorName);
+            }
 
             return (
                 <div className="feed" key={index}>
                     <div className="head">
                         <div className="user">
                             <div className="profile-photo">
+                                {/* This comes from App.js logic, so it is already correct */}
                                 <img src={post.userImage} alt="profile" />
                             </div>
                             <div className="ingo">
-                                {/* Added flexWrap to prevent buttons from squishing on small screens */}
                                 <div style={{display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap'}}>
                                   
-                                  {/* 1. NAME LINK */}
                                   <Link to={`/profile/${post.author}`} style={{textDecoration: 'none', color: 'inherit'}}>
                                       <h3 style={{cursor: 'pointer'}}>
                                           {authorName}
                                       </h3>
                                   </Link>                      
                                     
-                                  {/* 2. FOLLOW BUTTON */}
                                   {isMyPost ? (
                                       null 
                                   ) : isFollowing ? (
@@ -88,16 +103,13 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       </button>
                                   )}
 
-                                  {/* 3. MARKETPLACE BUTTONS (Mint/Sell/Buy) */}
                                   {isMyPost && (
                                       !post.isMinted ? (
-                                          // Not Minted -> Show Mint Button
                                           <button className="btn" style={{background: 'gold', color:'black', marginLeft:'5px', border:'none', fontSize:'0.7rem', padding:'3px 10px', borderRadius:'15px', cursor:'pointer'}} 
                                               onClick={() => mintNft(post.id)}>
                                               💎 Mint NFT
                                           </button>
                                       ) : (
-                                          // Minted -> Check if For Sale
                                           !post.forSale ? (
                                               <div style={{display:'inline-flex', marginLeft:'5px', gap:'5px', alignItems:'center'}}>
                                                   <input 
@@ -119,7 +131,6 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       )
                                   )}
 
-                                  {/* CASE 2: I am NOT the owner */}
                                   {!isMyPost && post.forSale && (
                                       <button className="btn btn-primary" 
                                           style={{marginLeft:'5px', background:'green', border:'none', fontSize:'0.7rem', padding:'3px 10px'}}
@@ -128,7 +139,6 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       </button>
                                   )}
                                   
-                                  {/* 4. NEW: LIKE / TIP BUTTON (Added Here) */}
                                   <button 
                                       className="btn"
                                       style={{
@@ -147,10 +157,8 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       onClick={() => tipPost(post.id)}
                                   >
                                       ❤️ Like (0.01)
-                                      {/* Show Total Earnings if > 0 */}
                                       {post.tipAmount && parseFloat(post.tipAmount) > 0 && (
                                           <span style={{background: '#ff4b4b', color: 'white', padding: '0px 4px', borderRadius: '50%', fontSize: '0.6rem'}}>
-                                              {/* Divide by 0.01 to get the count of clicks */}
                                               {Math.round(parseFloat(post.tipAmount) / 0.01)} 
                                           </span>
                                       )}
