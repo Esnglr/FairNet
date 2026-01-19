@@ -15,29 +15,50 @@ contract Cid is ERC721URIStorage {
         bool isMinted;
         uint price;
         bool forSale;
+        // --- NEW: TIPPING FIELD ---
+        uint tipAmount; // Tracks total earnings
     }
 
     Post[] public posts;
     mapping(address => address[]) public following;
     mapping(uint => uint) public postToTokenId; 
-    
-    // --- NEW: IDENTITY MAPPING ---
-    mapping(address => string) public usernames; // Address -> "Alice"
+    mapping(address => string) public usernames; 
 
+    // Events
     event PostCreated(uint postId, address author, string cid, uint timestamp);
     event PostMinted(uint postId, uint tokenId, address owner);
     event PostListed(uint postId, uint price);
     event PostSold(uint postId, address buyer, uint price);
     event UserFollowed(address follower, address followed);
-    // --- NEW EVENT ---
     event UsernameSet(address indexed user, string newName);
+    
+    // --- NEW EVENT ---
+    event PostTipped(uint postId, address from, address receiver, uint amount);
 
     constructor() ERC721("FairNet", "FNET") {}
 
     function createPost(string memory _cid) public {
         uint postId = posts.length;
-        posts.push(Post(postId, msg.sender, msg.sender, _cid, block.timestamp, false, 0, false));
+        // Initialize tipAmount (last argument) to 0
+        posts.push(Post(postId, msg.sender, msg.sender, _cid, block.timestamp, false, 0, false, 0));
         emit PostCreated(postId, msg.sender, _cid, block.timestamp);
+    }
+
+    // --- NEW: TIP FUNCTION ---
+    function tipPost(uint _postId) public payable {
+        require(_postId < posts.length, "Post does not exist");
+        require(msg.value > 0, "Tip must be greater than 0");
+
+        // 1. Identify the current owner (The person holding the NFT gets the money)
+        address payable receiver = payable(posts[_postId].owner);
+        
+        // 2. Send ETH
+        receiver.transfer(msg.value);
+
+        // 3. Update Stats
+        posts[_postId].tipAmount += msg.value;
+
+        emit PostTipped(_postId, msg.sender, receiver, msg.value);
     }
 
     function mintPost(uint _postId) public returns (uint256) {
@@ -86,13 +107,11 @@ contract Cid is ERC721URIStorage {
         emit PostSold(_postId, msg.sender, posts[_postId].price);
     }
 
-    // --- NEW: SET USERNAME ---
     function setUsername(string memory _name) public {
         usernames[msg.sender] = _name;
         emit UsernameSet(msg.sender, _name);
     }
 
-    // Standard Getters
     function getAllPosts() public view returns (Post[] memory) {
         return posts;
     }

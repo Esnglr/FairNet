@@ -14,7 +14,7 @@ import Profile from './components/Profile';
 const ipfsClient = create({ url: 'http://127.0.0.1:5001/api/v0' });
 
 // ⚠️ MAKE SURE THIS MATCHES YOUR LATEST DEPLOYMENT
-const CONTRACT_ADDRESS = "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512";
+const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 function App() {
   const [postContent, setPostContent] = useState('');
@@ -182,7 +182,8 @@ function App() {
             userImage: "https://ui-avatars.com/api/?name=" + displayName + "&background=random",
             isMinted: item.isMinted,
             price: ethers.formatEther(item.price),
-            forSale: item.forSale
+            forSale: item.forSale,
+            tipAmount: ethers.formatEther(item.tipAmount)
           });
         } catch (error) {
           console.error("Error loading post:", item.cid, error);
@@ -193,6 +194,33 @@ function App() {
       
     } catch (error) {
       console.error("Blockchain Load Error:", error);
+    }
+  };
+
+  // --- UPDATED: FIXED PRICE TIP (0.01 ETH) ---
+  const tipPost = async (postId) => {
+    try {
+      // 1. Define the Fixed Price (e.g., 0.01 ETH)
+      const fixedTip = "0.01";
+      
+      setStatus(`Sending ${fixedTip} ETH Tip... 💸`);
+      
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+
+      // 2. Convert to Wei
+      const tipAmountWei = ethers.parseEther(fixedTip);
+
+      // 3. Send Transaction
+      const tx = await contract.tipPost(postId, { value: tipAmountWei });
+      await tx.wait();
+
+      setStatus("Tip Sent! You are awesome ❤️");
+      loadBlockchainPosts(); 
+    } catch (error) {
+      console.error("Tip failed:", error);
+      setStatus("Tip Failed ❌");
     }
   };
 
@@ -417,7 +445,8 @@ function App() {
                   mintNft={mintNft}
                   listNft={listNft}
                   buyNft={buyNft}
-                  usernames={usernames} // <-- Passed here
+                  usernames={usernames}
+                  tipPost={tipPost}
                 />
               } />
               

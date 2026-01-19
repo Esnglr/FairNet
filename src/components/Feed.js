@@ -2,8 +2,8 @@ import React, {useState} from 'react';
 import '../style.css';
 import { Link } from 'react-router-dom';
 
-// 1. UPDATED PROPS: Added 'usernames'
-const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft, usernames}) => {
+// 1. UPDATED PROPS: Added 'tipPost' to the list
+const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft, usernames, tipPost}) => {
     const [file, setFile] = useState(null);
     const [sellPrice, setSellPrice] = useState({});
     
@@ -57,16 +57,17 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                 <img src={post.userImage} alt="profile" />
                             </div>
                             <div className="ingo">
-                                <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
+                                {/* Added flexWrap to prevent buttons from squishing on small screens */}
+                                <div style={{display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap'}}>
                                   
-                                  {/* User Name Link with UPDATED NAME LOGIC */}
+                                  {/* 1. NAME LINK */}
                                   <Link to={`/profile/${post.author}`} style={{textDecoration: 'none', color: 'inherit'}}>
                                       <h3 style={{cursor: 'pointer'}}>
                                           {authorName}
                                       </h3>
                                   </Link>                      
                                     
-                                  {/* --- FOLLOW BUTTON LOGIC --- */}
+                                  {/* 2. FOLLOW BUTTON */}
                                   {isMyPost ? (
                                       null 
                                   ) : isFollowing ? (
@@ -87,20 +88,18 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       </button>
                                   )}
 
-                                  {/* --- MARKETPLACE LOGIC --- */}
-
-                                  {/* CASE 1: I am the owner */}
+                                  {/* 3. MARKETPLACE BUTTONS (Mint/Sell/Buy) */}
                                   {isMyPost && (
                                       !post.isMinted ? (
                                           // Not Minted -> Show Mint Button
-                                          <button className="btn" style={{background: 'gold', color:'black', marginLeft:'10px', border:'none', fontSize:'0.7rem', padding:'3px 10px', borderRadius:'15px', cursor:'pointer'}} 
+                                          <button className="btn" style={{background: 'gold', color:'black', marginLeft:'5px', border:'none', fontSize:'0.7rem', padding:'3px 10px', borderRadius:'15px', cursor:'pointer'}} 
                                               onClick={() => mintNft(post.id)}>
                                               💎 Mint NFT
                                           </button>
                                       ) : (
                                           // Minted -> Check if For Sale
                                           !post.forSale ? (
-                                              <div style={{display:'inline-flex', marginLeft:'10px', gap:'5px', alignItems:'center'}}>
+                                              <div style={{display:'inline-flex', marginLeft:'5px', gap:'5px', alignItems:'center'}}>
                                                   <input 
                                                       type="number" 
                                                       placeholder="ETH" 
@@ -113,7 +112,7 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                                   </button>
                                               </div>
                                           ) : (
-                                              <span style={{marginLeft:'10px', background:'#eee', padding:'2px 8px', borderRadius:'10px', fontSize:'0.7rem', border:'1px solid #ddd'}}>
+                                              <span style={{marginLeft:'5px', background:'#eee', padding:'2px 8px', borderRadius:'10px', fontSize:'0.7rem', border:'1px solid #ddd'}}>
                                                   🏷️ For Sale: {post.price} ETH
                                               </span>
                                           )
@@ -123,13 +122,39 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                   {/* CASE 2: I am NOT the owner */}
                                   {!isMyPost && post.forSale && (
                                       <button className="btn btn-primary" 
-                                          style={{marginLeft:'10px', background:'green', border:'none', fontSize:'0.7rem', padding:'3px 10px'}}
+                                          style={{marginLeft:'5px', background:'green', border:'none', fontSize:'0.7rem', padding:'3px 10px'}}
                                           onClick={() => buyNft(post.id, post.price)}>
                                           Buy for {post.price} ETH
                                       </button>
                                   )}
                                   
-                                  {/* ------------------------------------------- */}
+                                  {/* 4. NEW: LIKE / TIP BUTTON (Added Here) */}
+                                  <button 
+                                      className="btn"
+                                      style={{
+                                          marginLeft: '5px',
+                                          background: 'transparent', 
+                                          color: '#ff4b4b', 
+                                          border: '1px solid #ff4b4b',
+                                          padding: '2px 10px',
+                                          borderRadius: '20px',
+                                          cursor: 'pointer',
+                                          display: 'flex', 
+                                          alignItems: 'center', 
+                                          gap: '5px',
+                                          fontSize: '0.7rem'
+                                      }}
+                                      onClick={() => tipPost(post.id)}
+                                  >
+                                      ❤️ Like (0.01)
+                                      {/* Show Total Earnings if > 0 */}
+                                      {post.tipAmount && parseFloat(post.tipAmount) > 0 && (
+                                          <span style={{background: '#ff4b4b', color: 'white', padding: '0px 4px', borderRadius: '50%', fontSize: '0.6rem'}}>
+                                              {/* Divide by 0.01 to get the count of clicks */}
+                                              {Math.round(parseFloat(post.tipAmount) / 0.01)} 
+                                          </span>
+                                      )}
+                                  </button>
 
                                 </div>
                                 <small>{new Date(post.timestamp).toLocaleString()}</small>
