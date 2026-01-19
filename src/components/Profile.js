@@ -3,14 +3,24 @@ import { useParams, Link } from 'react-router-dom';
 import { ethers } from 'ethers'; 
 import '../style.css';
 
-const Profile = ({ posts, account, following }) => {
-  const { userAddress } = useParams(); // URL params
+// 1. UPDATED PROPS: Accepted 'usernames' and 'updateProfileName'
+const Profile = ({ posts, account, following, usernames, updateProfileName }) => {
+  const { userAddress } = useParams(); 
   
-  // Determine target address
+  // Determine target address (URL param OR current connected account)
   const targetAddress = userAddress ? userAddress.toLowerCase() : (account ? account.toLowerCase() : null);
 
   const [balance, setBalance] = useState('Loading...');
-  const [activeTab, setActiveTab] = useState('created'); // 'created' or 'collected'
+  const [activeTab, setActiveTab] = useState('created'); 
+  
+  // --- NEW: EDITING STATE ---
+  const [editing, setEditing] = useState(false);
+  const [newName, setNewName] = useState("");
+
+  // Determine Display Name (Look up in dictionary, or fallback to address)
+  const displayName = usernames && targetAddress && usernames[targetAddress] 
+    ? usernames[targetAddress] 
+    : (targetAddress ? targetAddress.slice(0,6) + "..." + targetAddress.slice(-4) : "User");
 
   // Fetch Balance
   useEffect(() => {
@@ -32,22 +42,17 @@ const Profile = ({ posts, account, following }) => {
 
   if (!targetAddress) return <div className="middle"><h3>Please connect wallet.</h3></div>;
 
-  // --- DAY 3 FILTERS ---
-  
-  // 1. CREATED: Author is target (regardless of who owns it now)
+  // --- FILTERS ---
   const createdPosts = posts.filter(post => 
     post.author && post.author.toLowerCase() === targetAddress
   );
 
-  // 2. COLLECTED: Owner is target, BUT Author is NOT target (Bought items)
-  // (We check post.owner exists first to be safe)
   const collectedPosts = posts.filter(post => 
     post.owner && 
     post.owner.toLowerCase() === targetAddress && 
     post.author.toLowerCase() !== targetAddress
   );
 
-  // Decide which list to show based on Tab
   const displayPosts = activeTab === 'created' ? createdPosts : collectedPosts;
   const isMyProfile = account && targetAddress === account.toLowerCase();
 
@@ -56,20 +61,52 @@ const Profile = ({ posts, account, following }) => {
         {/* --- PROFILE HEADER --- */}
         <div className="feeds">
             <div className="feed" style={{textAlign: 'center', padding: '30px'}}>
+                
+                {/* Avatar uses the Display Name now */}
                 <div className="profile-photo" style={{width: '100px', height: '100px', margin: '0 auto'}}>
                     <img 
-                        src={`https://ui-avatars.com/api/?name=${targetAddress}&background=random&length=1&bold=true`} 
+                        src={`https://ui-avatars.com/api/?name=${displayName}&background=random&bold=true`} 
                         alt="Profile" 
                         style={{width: '100%', height: '100%', borderRadius: '50%'}}
                     />
                 </div>
                 
-                <h2 style={{marginTop: '15px', color: 'var(--color-dark)'}}>
-                    {isMyProfile ? "My Profile" : "User Profile"}
-                </h2>
-                <p className="text-muted" style={{wordBreak: 'break-all', fontSize: '0.8rem'}}>
-                    {targetAddress}
-                </p>
+                {/* --- IDENTITY LOGIC: SHOW NAME OR EDIT FORM --- */}
+                {!editing ? (
+                    <div style={{marginTop: '15px'}}>
+                        <h2 style={{color: 'var(--color-dark)'}}>{displayName}</h2>
+                        <p className="text-muted" style={{fontSize: '0.8rem'}}>{targetAddress}</p>
+                        
+                        {/* Show Edit Button ONLY if it is my profile */}
+                        {isMyProfile && (
+                            <button 
+                                className="btn btn-primary" 
+                                style={{marginTop:'10px', fontSize:'0.8rem', padding:'5px 15px'}}
+                                onClick={() => setEditing(true)}
+                            >
+                                ✏️ Edit Name
+                            </button>
+                        )}
+                    </div>
+                ) : (
+                    <div style={{marginTop: '15px', display:'flex', flexDirection:'column', alignItems:'center', gap:'10px'}}>
+                        <input 
+                            type="text" 
+                            placeholder="Enter new name" 
+                            value={newName} 
+                            onChange={(e) => setNewName(e.target.value)}
+                            style={{padding:'8px', borderRadius:'5px', border:'1px solid #ccc'}}
+                        />
+                        <div style={{display:'flex', gap:'10px'}}>
+                            <button className="btn btn-primary" onClick={() => {
+                                updateProfileName(newName);
+                                setEditing(false);
+                            }}>Save</button>
+                            
+                            <button className="btn" style={{background:'gray', color:'white'}} onClick={() => setEditing(false)}>Cancel</button>
+                        </div>
+                    </div>
+                )}
                 
                 {/* Stats Row */}
                 <div style={{marginTop: '30px', display: 'flex', justifyContent: 'center', gap: '30px'}}>
@@ -89,7 +126,7 @@ const Profile = ({ posts, account, following }) => {
             </div>
         </div>
 
-        {/* --- TABS SECTION (New) --- */}
+        {/* --- TABS --- */}
         <div style={{display: 'flex', justifyContent: 'space-around', margin: '20px 0', background: 'var(--color-white)', padding: '10px', borderRadius: 'var(--card-border-radius)'}}>
             <button 
                 onClick={() => setActiveTab('created')}
@@ -115,7 +152,7 @@ const Profile = ({ posts, account, following }) => {
             </button>
         </div>
         
-        {/* --- POST LIST (Based on Active Tab) --- */}
+        {/* --- POST LIST --- */}
         <div className="feeds">
             {displayPosts.length === 0 ? (
                 <div className="feed">
@@ -129,23 +166,26 @@ const Profile = ({ posts, account, following }) => {
                         <div className="head">
                             <div className="user">
                                 <div className="profile-photo">
-                                    {/* If Collected, show Original Artist's photo. If Created, show Mine. */}
                                     <img src={post.userImage} alt="profile" />
                                 </div>
                                 <div className="ingo">
                                     <h3 style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                                        {post.author.toLowerCase() === targetAddress ? "You" : 
-                                         (post.author.slice(0,6) + "...")} 
+                                        {/* Use Username Lookup here too */}
+                                        {usernames && usernames[post.author.toLowerCase()] 
+                                            ? usernames[post.author.toLowerCase()] 
+                                            : post.author.slice(0,6)+"..."}
                                         
-                                        {/* BADGES */}
                                         {post.isMinted && <span style={{fontSize:'0.6rem', background:'#eee', padding:'2px 6px', borderRadius:'10px'}}>💎 Minted</span>}
                                         {post.forSale && <span style={{fontSize:'0.6rem', background:'green', color:'white', padding:'2px 6px', borderRadius:'10px'}}>🏷️ {post.price} ETH</span>}
                                     </h3>
                                     
-                                    {/* Subtitle logic */}
                                     <small>
                                         {activeTab === 'collected' 
-                                            ? <span>✍️ Original Artist: <Link to={`/profile/${post.author}`}>{post.author.substring(0,6)}...</Link></span> 
+                                            ? <span>✍️ Original Artist: <Link to={`/profile/${post.author}`}>{
+                                                usernames && usernames[post.author.toLowerCase()] 
+                                                ? usernames[post.author.toLowerCase()] 
+                                                : post.author.substring(0,6)+"..."
+                                              }</Link></span> 
                                             : new Date(post.timestamp).toLocaleString()
                                         }
                                     </small>
@@ -166,7 +206,7 @@ const Profile = ({ posts, account, following }) => {
             )}
         </div>
 
-        {/* --- FOLLOWING LIST (Only for My Profile) --- */}
+        {/* --- FOLLOWING LIST --- */}
         {isMyProfile && (
             <>
                 <h3 style={{marginTop: '30px', marginBottom: '10px', color: 'var(--color-dark)'}}>
@@ -175,23 +215,27 @@ const Profile = ({ posts, account, following }) => {
 
                 <div className="feeds">
                     {following && following.length > 0 ? (
-                        [...new Set(following)].map((userAddr, index) => (
-                            <Link to={`/profile/${userAddr}`} key={index} style={{textDecoration: 'none', color: 'inherit'}}>
-                                <div className="feed" style={{padding: '10px', cursor: 'pointer', transition: 'all 300ms ease'}}>
-                                    <div className="user" style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
-                                        <div className="profile-photo" style={{width: '40px', height: '40px'}}>
-                                            <img src={`https://ui-avatars.com/api/?name=${userAddr}&background=random`} alt="user" />
-                                        </div>
-                                        <div>
-                                            <h5 style={{color: 'var(--color-dark)'}}>
-                                                {userAddr.substring(0, 20)}...
-                                            </h5>
-                                            <small className="text-muted">View Profile</small>
+                        [...new Set(following)].map((userAddr, index) => {
+                             const followName = usernames && usernames[userAddr] ? usernames[userAddr] : userAddr.substring(0, 10)+"...";
+                             
+                             return (
+                                <Link to={`/profile/${userAddr}`} key={index} style={{textDecoration: 'none', color: 'inherit'}}>
+                                    <div className="feed" style={{padding: '10px', cursor: 'pointer', transition: 'all 300ms ease'}}>
+                                        <div className="user" style={{display: 'flex', alignItems: 'center', gap: '10px'}}>
+                                            <div className="profile-photo" style={{width: '40px', height: '40px'}}>
+                                                <img src={`https://ui-avatars.com/api/?name=${followName}&background=random`} alt="user" />
+                                            </div>
+                                            <div>
+                                                <h5 style={{color: 'var(--color-dark)'}}>
+                                                    {followName}
+                                                </h5>
+                                                <small className="text-muted">View Profile</small>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </Link>
-                        ))
+                                </Link>
+                             );
+                        })
                     ) : (
                         <div className="feed"><p className="text-muted" style={{padding:'15px'}}>Not following anyone.</p></div>
                     )}

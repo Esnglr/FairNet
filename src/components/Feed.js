@@ -2,10 +2,9 @@ import React, {useState} from 'react';
 import '../style.css';
 import { Link } from 'react-router-dom';
 
-// 1. UPDATED PROPS: Added listNft and buyNft
-const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft}) => {
+// 1. UPDATED PROPS: Added 'usernames'
+const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft, usernames}) => {
     const [file, setFile] = useState(null);
-    // 2. NEW STATE: To track the price input for each post
     const [sellPrice, setSellPrice] = useState({});
     
     return (
@@ -16,7 +15,8 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
         setFile(null)
       }}>
         <div className="profile-photo">
-           <img src="https://ui-avatars.com/api/?name=You&background=random" alt="profile"/>
+           {/* Update "You" avatar to use your own name if set */}
+           <img src={`https://ui-avatars.com/api/?name=${usernames && account && usernames[account.toLowerCase()] ? usernames[account.toLowerCase()] : "You"}&background=random`} alt="profile"/>
         </div>
         <input 
             type="text" 
@@ -43,6 +43,12 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
             // Check if this post belongs to the current user
             const isMyPost = post.author.toLowerCase() === (account ? account.toLowerCase() : '');
 
+            // --- NAME LOOKUP LOGIC ---
+            // If name exists in dictionary, use it. Otherwise, truncate address.
+            const authorName = usernames && usernames[post.author.toLowerCase()] 
+                ? usernames[post.author.toLowerCase()] 
+                : `${post.author.slice(0,6)}...${post.author.slice(-4)}`;
+
             return (
                 <div className="feed" key={index}>
                     <div className="head">
@@ -53,10 +59,10 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                             <div className="ingo">
                                 <div style={{display: 'flex', gap: '10px', alignItems: 'center'}}>
                                   
-                                  {/* User Name Link */}
+                                  {/* User Name Link with UPDATED NAME LOGIC */}
                                   <Link to={`/profile/${post.author}`} style={{textDecoration: 'none', color: 'inherit'}}>
                                       <h3 style={{cursor: 'pointer'}}>
-                                          {post.author.slice(0,6)}...{post.author.slice(-4)}
+                                          {authorName}
                                       </h3>
                                   </Link>                      
                                     
@@ -81,7 +87,7 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       </button>
                                   )}
 
-                                  {/* --- MARKETPLACE LOGIC (Day 3 Update) --- */}
+                                  {/* --- MARKETPLACE LOGIC --- */}
 
                                   {/* CASE 1: I am the owner */}
                                   {isMyPost && (
