@@ -103,7 +103,7 @@ function App() {
     }
   };
 
-  // --- UPDATED LOAD POSTS (With Identity Logic) ---
+// --- UPDATED: LOAD POSTS (Fixes the "Name not showing" bug) ---
   const loadBlockchainPosts = async () => {
     try {
       const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
@@ -111,22 +111,37 @@ function App() {
       
       const allPosts = await contract.getAllPosts();
       
-      // 1. Load Usernames Logic
-      // Get all unique authors to avoid duplicate requests
-      const uniqueAuthors = [...new Set(allPosts.map(p => p.author))];
+      // --- FIX: ALWAYS FETCH MY OWN NAME ---
+      const authorsToFetch = allPosts.map(p => p.author);
+      
+      // If wallet is connected, add MYSELF to the list
+      // (This ensures my name loads even if I have 0 posts)
+      if (window.ethereum) {
+          try {
+             const browserProvider = new ethers.BrowserProvider(window.ethereum);
+             const signer = await browserProvider.getSigner();
+             const myAddress = await signer.getAddress();
+             authorsToFetch.push(myAddress);
+          } catch (e) { 
+             console.warn("Could not get local account for name fetch"); 
+          }
+      }
+      
+      const uniqueAuthors = [...new Set(authorsToFetch)];
+      // -------------------------------------
+
       const names = {};
       
       // Fetch names in parallel
       await Promise.all(uniqueAuthors.map(async (addr) => {
           try {
               const name = await contract.usernames(addr);
-              names[addr.toLowerCase()] = name || addr; // If no name, fallback to address
+              names[addr.toLowerCase()] = name || addr; 
           } catch (e) {
               names[addr.toLowerCase()] = addr;
           }
       }));
       setUsernames(names); // Update State
-      // -----------------------
 
       // 2. Load Following
       let myFollowing = [];
@@ -160,11 +175,10 @@ function App() {
             id: Number(item.id),
             cid: item.cid,
             author: item.author,
-            owner: item.owner, // Ensure this exists in Struct
+            owner: item.owner, 
             timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
             content: jsonContent.description || jsonContent.content || "No Text",
             image: jsonContent.image || null,
-            // Use name for Avatar if available
             userImage: "https://ui-avatars.com/api/?name=" + displayName + "&background=random",
             isMinted: item.isMinted,
             price: ethers.formatEther(item.price),

@@ -3,21 +3,20 @@ import { useParams, Link } from 'react-router-dom';
 import { ethers } from 'ethers'; 
 import '../style.css';
 
-// 1. UPDATED PROPS: Accepted 'usernames' and 'updateProfileName'
 const Profile = ({ posts, account, following, usernames, updateProfileName }) => {
-  const { userAddress } = useParams(); 
+  // 1. FIX: Use 'address' to match the Route path="/profile/:address" in App.js
+  const { address } = useParams(); 
   
-  // Determine target address (URL param OR current connected account)
-  const targetAddress = userAddress ? userAddress.toLowerCase() : (account ? account.toLowerCase() : null);
+  // 2. FIX: Use 'address' here too
+  // If 'address' exists in URL, use it. Otherwise, use connected 'account'.
+  const targetAddress = address ? address.toLowerCase() : (account ? account.toLowerCase() : null);
 
   const [balance, setBalance] = useState('Loading...');
   const [activeTab, setActiveTab] = useState('created'); 
-  
-  // --- NEW: EDITING STATE ---
   const [editing, setEditing] = useState(false);
   const [newName, setNewName] = useState("");
 
-  // Determine Display Name (Look up in dictionary, or fallback to address)
+  // Determine Display Name
   const displayName = usernames && targetAddress && usernames[targetAddress] 
     ? usernames[targetAddress] 
     : (targetAddress ? targetAddress.slice(0,6) + "..." + targetAddress.slice(-4) : "User");
@@ -54,6 +53,8 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
   );
 
   const displayPosts = activeTab === 'created' ? createdPosts : collectedPosts;
+  
+  // Check if this is MY profile
   const isMyProfile = account && targetAddress === account.toLowerCase();
 
   return (
@@ -62,7 +63,6 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
         <div className="feeds">
             <div className="feed" style={{textAlign: 'center', padding: '30px'}}>
                 
-                {/* Avatar uses the Display Name now */}
                 <div className="profile-photo" style={{width: '100px', height: '100px', margin: '0 auto'}}>
                     <img 
                         src={`https://ui-avatars.com/api/?name=${displayName}&background=random&bold=true`} 
@@ -71,13 +71,11 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                     />
                 </div>
                 
-                {/* --- IDENTITY LOGIC: SHOW NAME OR EDIT FORM --- */}
                 {!editing ? (
                     <div style={{marginTop: '15px'}}>
                         <h2 style={{color: 'var(--color-dark)'}}>{displayName}</h2>
                         <p className="text-muted" style={{fontSize: '0.8rem'}}>{targetAddress}</p>
                         
-                        {/* Show Edit Button ONLY if it is my profile */}
                         {isMyProfile && (
                             <button 
                                 className="btn btn-primary" 
@@ -108,7 +106,6 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                     </div>
                 )}
                 
-                {/* Stats Row */}
                 <div style={{marginTop: '30px', display: 'flex', justifyContent: 'center', gap: '30px'}}>
                     <div style={{textAlign: 'center'}}>
                         <h5 className="text-muted">Created</h5>
@@ -170,7 +167,6 @@ const Profile = ({ posts, account, following, usernames, updateProfileName }) =>
                                 </div>
                                 <div className="ingo">
                                     <h3 style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                                        {/* Use Username Lookup here too */}
                                         {usernames && usernames[post.author.toLowerCase()] 
                                             ? usernames[post.author.toLowerCase()] 
                                             : post.author.slice(0,6)+"..."}
