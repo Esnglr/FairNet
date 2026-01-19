@@ -22,6 +22,8 @@ function App() {
   const [account, setAccount] = useState(null); 
   const [status, setStatus] = useState('Not Connected');
   
+  // NOTE: Removed 'isPremiumUser' state because subscription is now per-author, not global.
+
   // Stores the mapping: Address -> Name
   const [usernames, setUsernames] = useState({}); 
 
@@ -91,6 +93,8 @@ function App() {
         setAccount(address);
         setStatus('Wallet Connected');
         
+        // Removed global premium check here
+        
         loadBlockchainPosts();
         loadFollowing(provider);
 
@@ -103,19 +107,31 @@ function App() {
     }
   };
 
-// --- UPDATED: LOAD POSTS (Fixes the "Name not showing" bug) ---
+// --- UPDATED: LOAD POSTS WITH SUBSCRIPTION LOGIC ---
   const loadBlockchainPosts = async () => {
     try {
+      // 1. Generic Provider for reading public data (names, public posts)
       const provider = new ethers.JsonRpcProvider("http://127.0.0.1:8545");
-      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, provider);
+      const readOnlyContract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, provider);
       
-      const allPosts = await contract.getAllPosts();
+      // 2. Signer Provider for Unlocking (We need this to prove who msg.sender is)
+      let signerContract = null;
+      if (window.ethereum) {
+          try {
+             const browserProvider = new ethers.BrowserProvider(window.ethereum);
+             const signer = await browserProvider.getSigner();
+             signerContract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+          } catch (e) {
+             console.warn("No signer available for unlocking content");
+          }
+      }
+
+      const allPosts = await readOnlyContract.getAllPosts();
       
-      // --- FIX: ALWAYS FETCH MY OWN NAME ---
+      // --- PART 1: SSI & AVATAR CONSISTENCY ---
       const authorsToFetch = allPosts.map(p => p.author);
       
-      // If wallet is connected, add MYSELF to the list
-      // (This ensures my name loads even if I have 0 posts)
+      // Add myself to ensure my profile loads even if I have 0 posts
       if (window.ethereum) {
           try {
              const browserProvider = new ethers.BrowserProvider(window.ethereum);
@@ -128,43 +144,32 @@ function App() {
       }
       
       const uniqueAuthors = [...new Set(authorsToFetch)];
-      // -------------------------------------
-
       const names = {};
       
       // Fetch names in parallel
       await Promise.all(uniqueAuthors.map(async (addr) => {
           try {
-              // 1. Get CID from Contract
-              const cid = await contract.profiles(addr);
-              
+              const cid = await readOnlyContract.profiles(addr);
               if (cid) {
-                  // 2. Fetch JSON from IPFS
                   const res = await fetch(`http://127.0.0.1:8080/ipfs/${cid}`);
                   const data = await res.json();
-                  
-                  // 3. Store in State
                   names[addr.toLowerCase()] = {
                       name: data.name,
                       bio: data.bio,
-                      avatar: data.avatar // Now we have a real avatar!
+                      avatar: data.avatar 
                   };
               }
           } catch (e) {
-              // Fallback if no profile exists
               names[addr.toLowerCase()] = { name: addr, bio: "", avatar: null };
           }
       }));
-      setUsernames(names); // Update State
+      setUsernames(names);
 
-      // 2. Load Following
+      // --- PART 2: LOAD FOLLOWING ---
       let myFollowing = [];
-      if (window.ethereum) {
+      if (signerContract) {
           try {
-             const browserProvider = new ethers.BrowserProvider(window.ethereum);
-             const signer = await browserProvider.getSigner();
-             const signedContract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
-             const rawFollowing = await signedContract.getMyFollowing();
+             const rawFollowing = await signerContract.getMyFollowing();
              myFollowing = rawFollowing.map(addr => addr.toLowerCase());
           } catch (err) {
              console.warn("Following list error:", err);
@@ -172,48 +177,103 @@ function App() {
       }
       setFollowing(myFollowing);
 
+
+      // --- PART 3: PROCESS POSTS (With Subscription Unlock Logic) ---
       const loadedPosts = [];
 
       for (let i = allPosts.length - 1; i >= 0; i--) {
-              const item = allPosts[i];
-              
-              try {
-                const response = await fetch(`http://127.0.0.1:8080/ipfs/${item.cid}`);
-                if (!response.ok) throw new Error("IPFS Fetch failed");
-                const jsonContent = await response.json();
+          const item = allPosts[i];
+          let finalCid = item.cid;
+          let isLocked = false;
 
-                // --- FIX STARTS HERE ---
-                const authorData = names[item.author.toLowerCase()];
-                
-                // 1. Get the Name safely (Handle Object vs String vs Address)
-                const authorName = authorData?.name 
-                    ? authorData.name 
-                    : (typeof authorData === 'string' ? authorData : item.author);
+          // === UNLOCK CHECK ===
+          // If the post is marked Premium AND the content is hidden
+          if (item.isPremium && item.cid === "LOCKED") {
+              if (signerContract) {
+                  try {
+                      // Try to fetch real CID. 
+                      // This will REVERT if user is NOT a subscriber of the author
+                      const unlockedCid = await signerContract.unlockPost(item.id);
+                      finalCid = unlockedCid;
+                      console.log(`🔓 Unlocked Post ${item.id} from ${item.author}`);
+                  } catch (err) {
+                      isLocked = true; // User is not a subscriber
+                  }
+              } else {
+                  isLocked = true; // No wallet connected
+              }
+          }
 
-                // 2. Get the Avatar safely
-                const authorAvatar = authorData?.avatar; // This is the IPFS link!
+          // === HANDLING LOCKED POSTS ===
+          if (isLocked) {
+              const authorData = names[item.author.toLowerCase()];
+              const authorName = authorData?.name || item.author;
+              const authorAvatar = authorData?.avatar;
 
-                loadedPosts.push({
+              loadedPosts.push({
                   id: Number(item.id),
-                  cid: item.cid,
+                  cid: "LOCKED",
                   author: item.author,
-                  owner: item.owner, 
+                  owner: item.owner,
                   timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
-                  content: jsonContent.description || jsonContent.content || "No Text",
-                  image: jsonContent.image || null,
-                  // 3. Logic: Use Custom Avatar if exists, otherwise generate one
+                  content: "🔒 Premium Content. Subscribe to Author to Unlock.", // Placeholder text
+                  image: null,
                   userImage: authorAvatar ? authorAvatar : `https://ui-avatars.com/api/?name=${authorName}&background=random`,
                   isMinted: item.isMinted,
                   price: ethers.formatEther(item.price),
                   forSale: item.forSale,
-                  tipAmount: ethers.formatEther(item.tipAmount)
-                });
-                // --- FIX ENDS HERE ---
+                  tipAmount: ethers.formatEther(item.tipAmount),
+                  isPremium: true,
+                  isLocked: true // Frontend flag to show the "Subscribe" card
+              });
+              continue; // Skip the rest of the loop for this item
+          }
 
-              } catch (error) {
-                console.error("Error loading post:", item.cid, error);
+          // === HANDLING STANDARD / UNLOCKED POSTS ===
+          try {
+            const response = await fetch(`http://127.0.0.1:8080/ipfs/${finalCid}`);
+            if (!response.ok) throw new Error("IPFS Fetch failed");
+            const jsonContent = await response.json();
+            
+            // Cooperatively Pin Content
+            try {
+              await ipfsClient.pin.add(finalCid);
+              if (jsonContent.image) {
+                  const imageCid = jsonContent.image.split('/').pop();
+                  await ipfsClient.pin.add(imageCid);
               }
+            } catch (pinError) {
+              console.warn(`Already pinned or pin error: ${finalCid}`);
             }
+            
+            const authorData = names[item.author.toLowerCase()];
+            const authorName = authorData?.name 
+                ? authorData.name 
+                : (typeof authorData === 'string' ? authorData : item.author);
+            const authorAvatar = authorData?.avatar;
+
+            loadedPosts.push({
+              id: Number(item.id),
+              cid: finalCid, 
+              author: item.author,
+              owner: item.owner, 
+              timestamp: new Date(Number(item.timestamp) * 1000).toISOString(),
+              content: jsonContent.description || jsonContent.content || "No Text",
+              image: jsonContent.image || null,
+              userImage: authorAvatar ? authorAvatar : `https://ui-avatars.com/api/?name=${authorName}&background=random`,
+              isMinted: item.isMinted,
+              price: ethers.formatEther(item.price),
+              forSale: item.forSale,
+              tipAmount: ethers.formatEther(item.tipAmount),
+              isPinnedByMe: true,
+              isPremium: item.isPremium, 
+              isLocked: false
+            });
+
+          } catch (error) {
+            console.error("Error loading post:", finalCid, error);
+          }
+      }
 
       setPosts(loadedPosts);
       
@@ -222,22 +282,16 @@ function App() {
     }
   };
 
-  // --- UPDATED: FIXED PRICE TIP (0.01 ETH) ---
   const tipPost = async (postId) => {
     try {
-      // 1. Define the Fixed Price (e.g., 0.01 ETH)
       const fixedTip = "0.01";
-      
       setStatus(`Sending ${fixedTip} ETH Tip... 💸`);
       
       const provider = new ethers.BrowserProvider(window.ethereum);
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
-
-      // 2. Convert to Wei
       const tipAmountWei = ethers.parseEther(fixedTip);
 
-      // 3. Send Transaction
       const tx = await contract.tipPost(postId, { value: tipAmountWei });
       await tx.wait();
 
@@ -261,7 +315,6 @@ function App() {
     }
   };
 
-// --- UPDATED: ROBUST NAME UPDATE ---
   const updateProfileName = async (newName) => {
     try {
       setStatus("Updating Profile Name...");
@@ -269,22 +322,18 @@ function App() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
       
-      const tx = await contract.setUsername(newName);
+      const tx = await contract.setUsername(newName); // Note: Make sure contract supports this or use setProfile
       
       setStatus("Mining... Please wait ⏳");
-      await tx.wait(); // Wait for block to be mined
-      
+      await tx.wait(); 
       setStatus("Name Updated! 👤");
 
-      // --- THE FIX: WAIT 2 SECONDS BEFORE RELOADING ---
-      // This gives the node time to index the new data
       setTimeout(() => {
         loadBlockchainPosts(); 
       }, 2000);
 
     } catch (error) {
       console.error(error);
-      // specific error handling for user rejection
       if (error.code === 4001 || error.code === 'ACTION_REJECTED') {
           setStatus("Transaction Cancelled ❌");
       } else {
@@ -293,7 +342,27 @@ function App() {
     }
   };
 
-  const createPost = async (e, file) => {
+  // --- NEW: SUBSCRIBE TO AUTHOR (Replaces joinPremium) ---
+  const subscribeToAuthor = async (authorAddress) => {
+    try {
+      setStatus(`Subscribing to author... 💎`);
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
+
+      // Call the new Solidity function
+      const tx = await contract.subscribeToAuthor(authorAddress, { value: ethers.parseEther("0.01") });
+      await tx.wait();
+
+      setStatus("Subscribed! Unlocking content... 🔓");
+      setTimeout(() => loadBlockchainPosts(), 1000); // Reload to unlock
+    } catch (error) {
+      console.error("Subscription Error:", error);
+      setStatus("Transaction Failed ❌");
+    }
+  };
+
+  const createPost = async (e, file, isPremium) => {
     e.preventDefault();
     if (!account) return alert("Please connect wallet");
     if (!postContent && !file) return;
@@ -312,7 +381,8 @@ function App() {
         image: imageCid,
         attributes: [
           {trait_type: "Author", value: account},
-          {trait_type: "Timestamp", value: new Date().toISOString()}
+          {trait_type: "Timestamp", value: new Date().toISOString()},
+          {trait_type: "Type", value: isPremium ? "Premium" : "Public"} 
         ]
       };
 
@@ -324,7 +394,7 @@ function App() {
       const signer = await provider.getSigner();
       const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
 
-      const tx = await contract.createPost(finalCid);
+      const tx = await contract.createPost(finalCid, isPremium);
       
       setStatus("Mining Transaction...");
       await tx.wait(); 
@@ -428,37 +498,30 @@ function App() {
 
       try {
           let avatarCid = null;
-          
-          // 1. Upload Avatar Image (if a new one is selected)
           if (avatarFile) {
               const added = await ipfsClient.add(avatarFile);
               avatarCid = `https://ipfs.io/ipfs/${added.path}`;
           }
 
-          // 2. Create Identity JSON
-          // We keep the old avatar if they didn't upload a new one
           const identityData = {
               name: name,
               bio: bio,
               avatar: avatarCid 
           };
 
-          // 3. Upload JSON to IPFS
           const result = await ipfsClient.add(JSON.stringify(identityData));
           const profileCid = result.path;
 
-          // 4. Store CID on Blockchain
           setStatus("Confirming Identity on Blockchain...");
           const provider = new ethers.BrowserProvider(window.ethereum);
           const signer = await provider.getSigner();
           const contract = new ethers.Contract(CONTRACT_ADDRESS, contractABI, signer);
 
-          const tx = await contract.setProfile(profileCid); // This matches our new Solidity function
+          const tx = await contract.setProfile(profileCid); 
           await tx.wait();
           
           setStatus("Identity Updated! 🆔");
           
-          // Reload to see changes
           setTimeout(() => window.location.reload(), 1000);
 
       } catch (error) {
@@ -480,10 +543,10 @@ function App() {
             <div className="create">
               <button className="btn btn-primary">
                   {usernames[account.toLowerCase()]?.name 
-                      ? usernames[account.toLowerCase()].name   // If it's an object with a name
+                      ? usernames[account.toLowerCase()].name   
                       : (typeof usernames[account.toLowerCase()] === 'string' 
-                          ? usernames[account.toLowerCase()]    // If it's just a string (old data)
-                          : account.slice(0,6) + "..." + account.slice(-4)) // Fallback
+                          ? usernames[account.toLowerCase()]    
+                          : account.slice(0,6) + "..." + account.slice(-4)) 
                   }
               </button>
             </div>
@@ -497,10 +560,12 @@ function App() {
                 <Link to="/" className="menu-item">
                   <span><i className="fa-solid fa-house"></i></span><h3>Home</h3>
                 </Link>
-                {/* Updated Link to go to My Profile specifically */}
+                
                 <Link to={`/profile/${account}`} className="menu-item">
                   <span><i className="fa-solid fa-user"></i></span><h3>Profile</h3>
                 </Link>
+                
+                {/* Note: Global Premium button removed as subscriptions are now per-user */}
                </div>
             </div>
 
@@ -519,10 +584,11 @@ function App() {
                   buyNft={buyNft}
                   usernames={usernames}
                   tipPost={tipPost}
+                  // --- CHANGED: PASS SUBSCRIBE FUNCTION ---
+                  subscribeToAuthor={subscribeToAuthor}
                 />
               } />
               
-              {/* Dynamic Profile Route for Everyone (Including Me) */}
               <Route path="/profile/:address" element={
                 <Profile 
                     posts={posts} 
@@ -530,6 +596,7 @@ function App() {
                     following={following} 
                     usernames={usernames} 
                     updateProfile={updateProfile}
+                    subscribeToAuthor={subscribeToAuthor}
                 />
               } />
             </Routes>

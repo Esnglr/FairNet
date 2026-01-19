@@ -194,6 +194,31 @@
       "inputs": [
         {
           "indexed": false,
+          "internalType": "address",
+          "name": "subscriber",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "author",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "NewSubscriber",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
           "internalType": "uint256",
           "name": "postId",
           "type": "uint256"
@@ -387,6 +412,25 @@
       "inputs": [
         {
           "internalType": "address",
+          "name": "_author",
+          "type": "address"
+        }
+      ],
+      "name": "amISubscribed",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
           "name": "to",
           "type": "address"
         },
@@ -439,6 +483,11 @@
           "internalType": "string",
           "name": "_cid",
           "type": "string"
+        },
+        {
+          "internalType": "bool",
+          "name": "_isPremium",
+          "type": "bool"
         }
       ],
       "name": "createPost",
@@ -533,6 +582,11 @@
               "internalType": "uint256",
               "name": "tipAmount",
               "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "isPremium",
+              "type": "bool"
             }
           ],
           "internalType": "struct Cid.Post[]",
@@ -741,6 +795,11 @@
           "internalType": "uint256",
           "name": "tipAmount",
           "type": "uint256"
+        },
+        {
+          "internalType": "bool",
+          "name": "isPremium",
+          "type": "bool"
         }
       ],
       "stateMutability": "view",
@@ -850,6 +909,43 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "_author",
+          "type": "address"
+        }
+      ],
+      "name": "subscribeToAuthor",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "name": "subscribers",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
           "internalType": "bytes4",
           "name": "interfaceId",
           "type": "bytes4"
@@ -933,5 +1029,24 @@
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_postId",
+          "type": "uint256"
+        }
+      ],
+      "name": "unlockPost",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
     }
-]
+  ]

@@ -2,40 +2,36 @@ import React, {useState} from 'react';
 import '../style.css';
 import { Link } from 'react-router-dom';
 
-const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft, usernames, tipPost}) => {
+// Updated Props: Removed 'isPremiumUser'/'joinPremium', added 'subscribeToAuthor'
+const Feed = ({ posts, createPost, postContent, setPostContent, followUser, following, account, mintNft, listNft, buyNft, usernames, tipPost, subscribeToAuthor }) => {
     const [file, setFile] = useState(null);
     const [sellPrice, setSellPrice] = useState({});
+    
+    // --- Track if the new post should be Premium ---
+    const [isPremiumPost, setIsPremiumPost] = useState(false);
     
     return (
     <div className="middle">
       <form className="create-post" onSubmit={(e) => {
         e.preventDefault(); 
-        createPost(e, file);
-        setFile(null)
+        // Pass the premium flag to the function
+        createPost(e, file, isPremiumPost);
+        setFile(null);
+        setIsPremiumPost(false); // Reset checkbox
       }}>
         <div className="profile-photo">
-           {/* --- FIX START: Display Current User's Custom Avatar --- */}
+           {/* --- Display Current User's Custom Avatar --- */}
            {(() => {
-               // 1. Get my data safely
                const myData = usernames && account ? usernames[account.toLowerCase()] : null;
-               
-               // 2. Get Name (Handle Object vs String vs Null)
-               const myName = myData?.name 
-                    ? myData.name 
-                    : (typeof myData === 'string' ? myData : "You");
-               
-               // 3. Get Avatar Link (if exists)
+               const myName = myData?.name ? myData.name : (typeof myData === 'string' ? myData : "You");
                const myAvatar = myData?.avatar;
-               
                return (
                  <img 
-                    // Use Custom Avatar if exists, otherwise generate generic one
                     src={myAvatar || `https://ui-avatars.com/api/?name=${myName}&background=random`} 
                     alt="profile"
                  />
                );
            })()}
-           {/* --- FIX END --- */}
         </div>
         <input 
             type="text" 
@@ -51,6 +47,21 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
             onChange={(e) => setFile(e.target.files[0])}
             style={{fontSize: '0.8rem', width: '60%'}}
         />
+
+        {/* --- PREMIUM CHECKBOX --- */}
+        <div style={{display:'flex', alignItems:'center', gap:'10px', marginTop:'10px', width:'100%'}}>
+            <input 
+                type="checkbox" 
+                id="premiumCheck"
+                checked={isPremiumPost}
+                onChange={(e) => setIsPremiumPost(e.target.checked)}
+                style={{width:'auto'}}
+            />
+            <label htmlFor="premiumCheck" style={{fontSize:'0.9rem', color:'gray', cursor:'pointer'}}>
+                Subscriber Only? 🔒
+            </label>
+        </div>
+
         <input type="submit" value="Post" className="btn btn-primary" />
       </form>
 
@@ -59,7 +70,6 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
             const isFollowing = following?.includes(post.author.toLowerCase());
             const isMyPost = post.author.toLowerCase() === (account ? account.toLowerCase() : '');
 
-            // Handle Author Name Display
             let authorName = `${post.author.slice(0,6)}...${post.author.slice(-4)}`;
             if (usernames && usernames[post.author.toLowerCase()]) {
                 const data = usernames[post.author.toLowerCase()];
@@ -71,7 +81,6 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                     <div className="head">
                         <div className="user">
                             <div className="profile-photo">
-                                {/* This comes from App.js logic, so it is already correct */}
                                 <img src={post.userImage} alt="profile" />
                             </div>
                             <div className="ingo">
@@ -82,7 +91,7 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                           {authorName}
                                       </h3>
                                   </Link>                      
-                                    
+                                   
                                   {isMyPost ? (
                                       null 
                                   ) : isFollowing ? (
@@ -103,7 +112,8 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       </button>
                                   )}
 
-                                  {isMyPost && (
+                                  {/* Hide Mint/Sell buttons if the post is Locked */}
+                                  {!post.isLocked && isMyPost && (
                                       !post.isMinted ? (
                                           <button className="btn" style={{background: 'gold', color:'black', marginLeft:'5px', border:'none', fontSize:'0.7rem', padding:'3px 10px', borderRadius:'15px', cursor:'pointer'}} 
                                               onClick={() => mintNft(post.id)}>
@@ -131,7 +141,7 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                       )
                                   )}
 
-                                  {!isMyPost && post.forSale && (
+                                  {!post.isLocked && !isMyPost && post.forSale && (
                                       <button className="btn btn-primary" 
                                           style={{marginLeft:'5px', background:'green', border:'none', fontSize:'0.7rem', padding:'3px 10px'}}
                                           onClick={() => buyNft(post.id, post.price)}>
@@ -165,20 +175,78 @@ const Feed = ({ posts, createPost, postContent, setPostContent, followUser, foll
                                   </button>
 
                                 </div>
-                                <small>{new Date(post.timestamp).toLocaleString()}</small>
+                                
+                                <small>
+                                    {new Date(post.timestamp).toLocaleString()}
+                                    {post.isPinnedByMe && (
+                                        <span style={{
+                                            marginLeft: '10px', 
+                                            color: 'var(--color-primary)', 
+                                            background: 'var(--color-light)',
+                                            padding: '2px 6px',
+                                            borderRadius: '4px',
+                                            fontSize: '0.7rem'
+                                        }}>
+                                            📌 Hosting
+                                        </span>
+                                    )}
+                                </small>
                             </div>
                         </div>
                     </div>
+
                     <div className="content">
-                        <p>{post.content}</p>
-                        {post.image && (
-                            <div style={{marginTop: '10px', borderRadius: '10px', overflow: 'hidden'}}>
-                                <img
-                                    src={post.image}
-                                    alt="Post content"
-                                    style={{width: '100%', borderRadius: '10px'}}
-                                />
+                        {/* --- LOCKED CONTENT LOGIC --- */}
+                        {post.isLocked ? (
+                            <div style={{
+                                background: '#f8f9fa', 
+                                padding: '30px', 
+                                textAlign: 'center', 
+                                borderRadius: '10px',
+                                border: '2px dashed #ffb703',
+                                margin: '10px 0'
+                            }}>
+                                <h2 style={{color: '#ffb703'}}>🔒 Author Exclusive</h2>
+                                <p className="text-muted" style={{marginBottom: '15px'}}>
+                                    Subscribe to this author to see their premium posts.
+                                </p>
+                                <p className="text-muted" style={{fontSize:'0.8rem'}}>
+                                    Proceeds go directly to the creator.
+                                </p>
+                                {/* UPDATED: Button now calls subscribeToAuthor with the specific author address */}
+                                <button className="btn btn-primary" onClick={() => subscribeToAuthor(post.author)}>
+                                    ⭐ Subscribe (0.01 ETH)
+                                </button>
                             </div>
+                        ) : (
+                            // --- NORMAL CONTENT ---
+                            <>
+                                {post.isPremium && (
+                                    <div style={{
+                                        display:'inline-block', 
+                                        background:'gold', 
+                                        color:'black', 
+                                        padding:'2px 8px', 
+                                        borderRadius:'10px', 
+                                        fontSize:'0.7rem',
+                                        marginBottom: '5px',
+                                        fontWeight: 'bold'
+                                    }}>
+                                        ⭐ Premium Unlocked
+                                    </div>
+                                )}
+                                
+                                <p>{post.content}</p>
+                                {post.image && (
+                                    <div style={{marginTop: '10px', borderRadius: '10px', overflow: 'hidden'}}>
+                                        <img
+                                            src={post.image}
+                                            alt="Post content"
+                                            style={{width: '100%', borderRadius: '10px'}}
+                                        />
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

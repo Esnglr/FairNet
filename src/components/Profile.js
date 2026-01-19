@@ -3,7 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { ethers } from 'ethers'; 
 import '../style.css';
 
-const Profile = ({ posts, account, following, usernames, updateProfile }) => {
+// --- UPDATED: Added subscribeToAuthor to props ---
+const Profile = ({ posts, account, following, usernames, updateProfile, subscribeToAuthor }) => {
   const { address } = useParams(); 
   
   // If 'address' exists in URL, use it. Otherwise, use connected 'account'.
@@ -206,7 +207,6 @@ const Profile = ({ posts, account, following, usernames, updateProfile }) => {
                                 </div>
                                 <div className="ingo">
                                     <h3 style={{display:'flex', alignItems:'center', gap:'5px'}}>
-                                        {/* FIX: Use getNameSafe here */}
                                         {getNameSafe(post.author)}
                                         
                                         {post.isMinted && <span style={{fontSize:'0.6rem', background:'#eee', padding:'2px 6px', borderRadius:'10px'}}>💎 Minted</span>}
@@ -216,7 +216,6 @@ const Profile = ({ posts, account, following, usernames, updateProfile }) => {
                                     <small>
                                         {activeTab === 'collected' 
                                             ? <span>✍️ Original Artist: <Link to={`/profile/${post.author}`}>
-                                                {/* FIX: Use getNameSafe here too */}
                                                 {getNameSafe(post.author)}
                                               </Link></span> 
                                             : new Date(post.timestamp).toLocaleString()
@@ -227,11 +226,48 @@ const Profile = ({ posts, account, following, usernames, updateProfile }) => {
                         </div>
 
                         <div className="content">
-                            <p>{post.content}</p>
-                            {post.image && (
-                                <div style={{marginTop: '10px', borderRadius: '10px', overflow: 'hidden'}}>
-                                    <img src={post.image} alt="content" style={{width: '100%', borderRadius: '10px'}}/>
+                            {/* --- UPDATED: LOCKED CONTENT LOGIC --- */}
+                            {post.isLocked ? (
+                                <div style={{
+                                    background: '#f8f9fa', 
+                                    padding: '30px', 
+                                    textAlign: 'center', 
+                                    borderRadius: '10px',
+                                    border: '2px dashed #ffb703',
+                                    margin: '10px 0'
+                                }}>
+                                    <h2 style={{color: '#ffb703'}}>🔒 Author Exclusive</h2>
+                                    <p className="text-muted" style={{marginBottom: '15px'}}>
+                                        Subscribe to this author to see their premium posts.
+                                    </p>
+                                    <button className="btn btn-primary" onClick={() => subscribeToAuthor(post.author)}>
+                                        ⭐ Subscribe (0.01 ETH)
+                                    </button>
                                 </div>
+                            ) : (
+                                // --- NORMAL CONTENT ---
+                                <>
+                                    {post.isPremium && (
+                                        <div style={{
+                                            display:'inline-block', 
+                                            background:'gold', 
+                                            color:'black', 
+                                            padding:'2px 8px', 
+                                            borderRadius:'10px', 
+                                            fontSize:'0.7rem',
+                                            marginBottom: '5px',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            ⭐ Premium Unlocked
+                                        </div>
+                                    )}
+                                    <p>{post.content}</p>
+                                    {post.image && (
+                                        <div style={{marginTop: '10px', borderRadius: '10px', overflow: 'hidden'}}>
+                                            <img src={post.image} alt="content" style={{width: '100%', borderRadius: '10px'}}/>
+                                        </div>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -249,7 +285,6 @@ const Profile = ({ posts, account, following, usernames, updateProfile }) => {
                 <div className="feeds">
                     {following && following.length > 0 ? (
                         [...new Set(following)].map((userAddr, index) => {
-                             // FIX: Use getNameSafe here for Step 3
                              const followName = getNameSafe(userAddr);
                              
                              return (
