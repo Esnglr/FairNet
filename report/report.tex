@@ -1,138 +1,143 @@
-\documentclass[12pt, a4paper]{article}
-
-% Required Packages
-\usepackage[utf8]{inputenc}
+\documentclass[onecolumn]{article}
+%\usepackage{url}
+%\usepackage{algorithmic}
+\usepackage[a4paper]{geometry}
+\usepackage[hyphenbreaks]{breakurl}
+\usepackage[hyphens]{url}
+\usepackage{datetime}
+\usepackage[margin=2em, font=small,labelfont=it]{caption}
 \usepackage{graphicx}
-\usepackage{geometry}
+\usepackage{mathpazo} % use palatino
+\usepackage[scaled]{helvet} % helvetica
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{subfigure}
+% Letterspacing macros
+\newcommand{\spacecaps}[1]{\textls[200]{\MakeUppercase{#1}}}
+\newcommand{\spacesc}[1]{\textls[50]{\textsc{\MakeLowercase{#1}}}}
+\usepackage[utf8]{inputenc} %Türkçe karakterler
+\usepackage[T1]{fontenc} %Türkçe heceleme
 \usepackage{hyperref}
-\usepackage{titlesec}
-\usepackage{setspace}
-\usepackage{float}
-\usepackage{listings}
-\usepackage{xcolor}
-
-% Formatting Setup
-\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
-\onehalfspacing
-
-% Title Page Information
-\title{
-    \textbf{Decentralized Social Media Platform}\\
-    \large{Design and Implementation of a Censorship-Resistant Social Media Application using IPFS and Ethereum}\\
-    \vspace{1cm}
-    \large{\textbf{CENG 3550:} Decentralized Systems and Applications}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
 }
-\author{
-    Tuna Güven (230709064)\\
-    Esin Güler (230709075)\\
-    \\
-    \textit{Department of Computer Engineering}
-}
-\date{\today}
-
 \begin{document}
 
-% --- Title Page ---
-\maketitle
-\thispagestyle{empty}
-\newpage
 
-% --- Abstract ---
+
+\title{\spacecaps{FairNet: Decentralized Social Media Platform}\\ \normalsize \spacesc{CENG 3550, Decentralized Systems and Applications} }
+
+\author{Tuna Güven, Esin Güler\\tunaguven@posta.mu.edu.tr\\esinguler@posta.mu.edu.tr}
+%\date{\today\\\currenttime}
+\date{\today}
+
+\maketitle
+
 \begin{abstract}
-This report details the design and implementation of a decentralized social media application (DApp) developed as a final project for the Decentralized Systems course. The project addresses the limitations of traditional Web 2.0 social platforms, specifically focusing on censorship resistance, data ownership, and fair revenue distribution for creators. The system utilizes a hybrid architecture combining the Ethereum blockchain for logic and transaction settlement, and IPFS (InterPlanetary File System) for distributed content storage. Key features include Self-Sovereign Identity (SSI), an NFT-based marketplace, encrypted content delivery, and a zero-fee tipping mechanism. We demonstrate data consistency and network persistence through a custom Host-Client topology using Tailscale and the Go implementation of IPFS (Kubo).
+This report details the design and implementation of "FairNet," a decentralized social media application developed as a final project. The project addresses the limitations of traditional Web 2.0 social platforms, specifically focusing on censorship resistance, data ownership, and fair revenue distribution for creators. The system utilizes a hybrid architecture combining the Ethereum blockchain (Hardhat) for logic and transaction settlement, and IPFS (InterPlanetary File System - Kubo) for distributed content storage. Key features include Self-Sovereign Identity (SSI), an NFT-based marketplace, encrypted content delivery (Token-Gating), and a zero-fee tipping mechanism. We demonstrate data consistency and network persistence through a custom Host-Client topology using Tailscale, introducing a novel "Cooperative Pinning" protocol to ensure content survival.
 \end{abstract}
 
-% --- Section 1: Introduction ---
+
+
 \section{Introduction}
 Traditional social media platforms rely on centralized servers, creating single points of failure and giving platform owners absolute control over user data. This centralization leads to issues regarding censorship, privacy violations, and unfair monetization models where intermediaries extract significant fees from content creators.
 
 We propose a Web 3.0 alternative: a Decentralized Social Media DApp. By leveraging blockchain technology and distributed file systems, our application ensures that users retain ownership of their content and identity. The platform is built upon the Ethereum Hardhat environment for smart contract execution and IPFS for storage, ensuring censorship resistance. Furthermore, we implement a fair economic model where creators receive 100\% of the tips (likes) directly from their audience, eliminating platform fees.
 
-% --- Section 2: System Architecture ---
-\section{System Architecture}
-The application follows a hybrid decentralized architecture. To overcome the high cost of storing large media files on the blockchain, we utilize IPFS for heavy static assets (images, audio, video) while using the Ethereum blockchain for state management, identity verification, and financial transactions.
+This report outlines the fundamentals of the technology used, the system architecture including the "Cooperative Pinning" innovation, implementation details of the smart contracts and frontend, and the experimental results of our network persistence tests.
 
-\subsection{Cooperative Pinning Protocol}
+\section{Fundamentals}
+This section provides an overview of the core technologies utilized in the FairNet ecosystem.
+
+\subsection{Blockchain and Smart Contracts}
+The backbone of FairNet's logic is the Ethereum Blockchain. We utilize Smart Contracts written in Solidity to handle the "Table of Contents" for the application. This ensures that the registry of posts is immutable and tamper-proof. Specifically, we employ the ERC-721 standard to treat posts as Non-Fungible Tokens (NFTs), allowing for ownership transfer and monetization.
+
+\subsection{IPFS (InterPlanetary File System)}
+While the blockchain stores logic, storing images and large text data on-chain is prohibitively expensive. FairNet uses IPFS, a peer-to-peer hypermedia protocol. We utilize \textbf{Kubo}, the Go implementation of IPFS. In IPFS, files are addressed by their content hash (CID) rather than their location. This ensures that as long as one node in the network holds the file, it remains accessible to all.
+
+\subsection{Self-Sovereign Identity (SSI)}
+We implemented a Self-Sovereign Identity system to establish trust. User profiles (Bio, Display Name, Avatar CIDs) are not stored on a central database but are recorded directly on the blockchain. This allows users to cryptographically prove they are the owners of their profiles using their wallet keys, creating a root of trust without a central authority.
+
+
+\section{RELATED WORKS}
+Decentralized social media is an active area of research. Early platforms like Steemit introduced the concept of blockchain-based blogging but suffered from heavy on-chain data requirements. Newer protocols like Lens Protocol attempt to create a social graph on the blockchain.
+
+FairNet differs from these by focusing on a lightweight, "View-to-Host" persistency model. Unlike Filecoin, which requires financial incentives for storage, FairNet relies on social cooperation—users inherently host the content they are interested in viewing, creating a natural redundancy for popular content via our Cooperative Pinning mechanism.
+
+
+\section{SYSTEM PROPOSAL / Architecture}
+
+The application follows a hybrid decentralized architecture. To overcome the high cost of storing large media files on the blockchain, we utilize IPFS for heavy static assets while using the Ethereum blockchain for state management.
+
 The core innovation of our architecture is the "View-to-Host" protocol, which ensures data persistence through user participation. Figure \ref{fig:architecture} details the sequence of events between a Host (User A) and a Guest (User B) connected via a secure Tailscale mesh network.
 
-\begin{enumerate}
-    \item \textbf{Initial Upload \& Discovery:} The process begins when the Host (User A) uploads a file (e.g., "Hello.png"). This file is initially stored \textit{only} on User A's local IPFS node. When the Guest (User B) opens the application, their client queries the Ethereum Blockchain to retrieve the post list and obtains the unique Content Identifier (CID).
-
-    \item \textbf{P2P Data Transfer:} User B's client requests the content using the CID. Since the file is not yet on User B's machine, their IPFS node uses the Swarm protocol to locate User A and download the data directly via the Tailscale tunnel.
-
-    \item \textbf{Auto-Pinning (The Innovation):} Once User B successfully views the content, the application logic automatically triggers an \texttt{ipfs.pin.add} command on User B's local node. This transitions User B from a passive "viewer" to an active "co-host," permanently saving the file to their local storage.
-
-    \item \textbf{Fault Tolerance (The "Unplug" Test):} To validate the architecture, the system is tested against a failure scenario where User A goes offline. As shown in the diagram, when User B refreshes the page, the content does not disappear. Instead, the local IPFS node retrieves the image from its own cache. This proves that data has successfully migrated and is no longer dependent on the original creator.
-\end{enumerate}
-
-\begin{figure}[H]
-    \centering
-    % Ensure your image is named architecture.png and is in the same folder
-    \includegraphics[width=0.6\textwidth]{architecture.png}
-    \caption{Sequence Diagram of the Cooperative Pinning Protocol, illustrating how data survives when the Host goes offline.}
-    \label{fig:architecture}
+\begin{figure}[tpb]
+\begin{center}
+\includegraphics[width=1.0\textwidth]{architecture.png}
+\end{center}
+\caption{Sequence Diagram of the Cooperative Pinning Protocol}
+\label{fig:architecture}
 \end{figure}
 
-% --- Section 3: Technical Implementation ---
-\section{Technical Implementation}
-The core technology stack consists of \textbf{Kubo} (the Go implementation of IPFS) for storage nodes and \textbf{Hardhat} for the local Ethereum development environment. The frontend interacts with these layers via \textbf{Metamask} and Web3 libraries.
-
-\subsection{Wallet Integration and Authentication}
-Unlike traditional username/password schemes, our application uses cryptographic key pairs for authentication. Users log in using the \textbf{Metamask} browser extension. The user's Ethereum wallet address serves as their unique identifier within the system. For demonstration purposes, we utilized test accounts imported via private keys into Metamask to simulate various network actors.
-
-\subsection{Self-Sovereign Identities (SSI)}
-We implemented a Self-Sovereign Identity system to establish trust and authenticity. User profiles (Bio, Display Name, Avatar CIDs) are not stored on a central database but are recorded directly on the blockchain smart contract.
-\begin{itemize}
-    \item This ensures that a user's identity is portable and immutable.
-    \item Users can mathematically prove they are the owners of their profiles by signing transactions with their private keys.
-    \item This creates a "Root of Trust" directly on the ledger.
-\end{itemize}
-
-\subsection{NFT Minting and Marketplace}
-Creators can tokenize their content (music, paintings, digital art) by minting them as Non-Fungible Tokens (NFTs).
+As illustrated in Figure \ref{fig:architecture}, the process follows these steps:
 \begin{enumerate}
-    \item The media file is uploaded to IPFS, generating a Content Identifier (CID).
-    \item A smart contract function mints a token linked to this CID.
-    \item Creators can list these NFTs for sale at a desired ETH price.
-    \item Ownership is tracked on-chain, allowing for a decentralized secondary market.
+    \item \textbf{Initial Upload:} The Host (User A) uploads a file (e.g., "Hello.png"). This is stored on User A's local IPFS node.
+    \item \textbf{Discovery:} The Guest (User B) queries the Blockchain to get the Content Identifier (CID).
+    \item \textbf{P2P Fetch:} User B's IPFS node requests the hash. The "Swarm Fetch" occurs, downloading the file from User A via the Tailscale tunnel.
+    \item \textbf{The Innovation (Auto-Pin):} Once viewed, User B's client automatically pins the content (\texttt{ipfs.pin.add}). User B is now a co-host.
+    \item \textbf{Fault Tolerance:} If User A goes offline (Unplug), User B can still access the content from their local cache/pin, ensuring the data survives.
 \end{enumerate}
 
-\subsection{Encrypted Posts and Token-Gating}
-A key feature of our platform is the "Subscribers Only" content model, achieved through encryption and NFTs.
 
-\textbf{The Encryption Logic:}
-To ensure that only paying subscribers can view exclusive content, we implemented the following logic:
+\section{IMPLEMENTATION}
+
+The prototype system works as a distributed network of nodes. We used \textbf{Hardhat} to execute our own smart contracts and \textbf{Kubo (Go-IPFS)} for storage.
+
+\subsection{Wallet Integration}
+Users create accounts and login using their Ethereum wallets via the \textbf{Metamask} extension. The wallet address serves as the user's identity. We utilized test accounts imported via private keys for demonstration.
+
+\subsection{NFT Minting \& Marketplace}
+Creators can mint NFTs on their posts (music, painting, etc.). A smart contract function links the IPFS CID to a token ID. Creators can then sell these NFTs for a desired amount of ETH.
+
+\subsection{Encrypted Posts (Token-Gating)}
+For "Subscriber Only" content, we implemented client-side encryption:
 \begin{enumerate}
-    \item \textbf{Encryption:} When an artist posts premium content, the media file is encrypted client-side using a symmetric key (AES) before being uploaded to IPFS. This ensures that even if the IPFS CID is public, the raw content remains unreadable.
-    \item \textbf{Token-Gating:} The decryption key is not stored openly. Access is governed by the Smart Contract. The frontend application checks the user's wallet balance for the specific NFT associated with the post.
-    \item \textbf{Decryption:} If the user owns the required NFT (Proof of Payment), the system retrieves the encrypted payload from IPFS and allows the local wallet to decrypt the content for viewing.
+    \item \textbf{Encryption:} Media is encrypted with AES before IPFS upload.
+    \item \textbf{Token-Gating:} The decryption key is protected. The app checks if the user owns the specific NFT.
+    \item \textbf{Decryption:} If the user owns the NFT, the content is decrypted locally.
 \end{enumerate}
 
-\subsection{Zero-Fee Tipping System}
-We replaced the traditional "Like" button with a financial transaction. In our system, a "Like" represents a direct monetary tip.
-\begin{itemize}
-    \item \textbf{Mechanism:} When a user clicks "Like," Metamask prompts a transaction of \textbf{0.01 ETH}.
-    \item \textbf{Direct Transfer:} The smart contract routes these funds directly from the Liker's wallet to the Content Creator's wallet.
-    \item \textbf{Fair Economy:} The protocol charges \textbf{0\% fees}, ensuring the artist receives the full value of the support.
-\end{itemize}
+\subsection{Zero-Fee Tipping}
+We replaced the "Like" button with a financial transaction. Every like triggers a \textbf{0.01 ETH} transaction via Metamask. This is a direct peer-to-peer transfer with 0\% platform fees, realizing a fair revenue system.
 
-% --- Section 4: Network Topology and Data Consistency ---
-\section{Network Topology and Data Persistence}
-To demonstrate the decentralized nature of the application and ensure data consistency, we set up a private P2P network.
+\subsection{Network Topology (Tailscale)}
+To achieve data consistency, two computers were connected via \textbf{Tailscale} to simulate a wide-area network. One acted as the Server (Host) and the other as Client. We used IPFS IDs and Tailscale IPs to manually peer the nodes, creating a private swarm for testing.
 
-\subsection{IPFS Swarm via Tailscale}
-Since default local IPFS nodes cannot easily discover each other over different NATs (Network Address Translations), we utilized \textbf{Tailscale} to create a secure overlay network.
-\begin{enumerate}
-    \item \textbf{Setup:} Two computers were connected via Tailscale, assigning them virtual static IPs.
-    \item \textbf{Peering:} One machine acted as the "Server" (Host) and the other as the "Client."
-    \item \textbf{Swarm Connect:} We manually peered the IPFS nodes using the specific IPFS IDs and Tailscale IPs.
-\end{enumerate}
 
-\subsection{Data Persistence Results}
-This setup allowed us to verify that content uploaded by the Host was instantly discoverable and retrievable by the Client node. By pinning the content on both nodes, we achieved data redundancy, ensuring that even if one node goes offline, the data remains persistent on the network.
+\section{RESULTS and DISCUSSION}
 
-% --- Section 5: Conclusion ---
-\section{Conclusion}
+The primary success metric was the "Unplug Test."
+In our experimental setup, User A hosted an image and User B viewed it. After User B's client auto-pinned the content, we physically disconnected User A from the network.
+\textbf{Result:} User B could still load and view the image. This confirms that the "Cooperative Pinning" architecture successfully decentralizes the hosting burden and prevents data loss when the original creator disappears. The 0\% fee tipping system was also verified with multiple test transactions on the Hardhat local network.
+
+
+\section{CONCLUSION}
+
 This project successfully demonstrates a functional prototype of a Web 3.0 social media platform. By integrating Ethereum Smart Contracts for logic and IPFS for storage, we achieved censorship resistance and data sovereignty. The implementation of SSI, Token-Gated encryption, and a zero-fee tipping economy offers a viable alternative to the exploitative models of Web 2.0. The successful networking test via Tailscale proves the system's capability to maintain data consistency across distributed nodes.
+
+\section*{ACKNOWLEDGEMENT}
+We would like to thank our course instructors for their guidance on Distributed Systems concepts.
+
+\begin{thebibliography}{00}
+\bibitem{c1} Nakamoto, Satoshi. Bitcoin: A peer-to-peer electronic cash system. Manubot, 2019.
+\bibitem{c2} Benet, Juan. "IPFS-content addressed, versioned, p2p file system." arXiv preprint arXiv:1407.3561 (2014).
+\bibitem{c3} Buterin, Vitalik. "A next-generation smart contract and decentralized application platform." White paper 3.37 (2014).
+\bibitem{c4} Entriken, W., et al. "EIP-721: Non-Fungible Token Standard," Ethereum Improvement Proposals, no. 721, Jan. 2018.
+\end{thebibliography}
+\vspace{12pt}
+
 
 \end{document}
