@@ -1,0 +1,138 @@
+\documentclass[12pt, a4paper]{article}
+
+% Required Packages
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{setspace}
+\usepackage{float}
+\usepackage{listings}
+\usepackage{xcolor}
+
+% Formatting Setup
+\geometry{left=2.5cm, right=2.5cm, top=2.5cm, bottom=2.5cm}
+\onehalfspacing
+
+% Title Page Information
+\title{
+    \textbf{Decentralized Social Media Platform}\\
+    \large{Design and Implementation of a Censorship-Resistant Social Media Application using IPFS and Ethereum}\\
+    \vspace{1cm}
+    \large{\textbf{CENG 3550:} Decentralized Systems and Applications}
+}
+\author{
+    Tuna Güven (230709064)\\
+    Esin Güler (230709075)\\
+    \\
+    \textit{Department of Computer Engineering}
+}
+\date{\today}
+
+\begin{document}
+
+% --- Title Page ---
+\maketitle
+\thispagestyle{empty}
+\newpage
+
+% --- Abstract ---
+\begin{abstract}
+This report details the design and implementation of a decentralized social media application (DApp) developed as a final project for the Decentralized Systems course. The project addresses the limitations of traditional Web 2.0 social platforms, specifically focusing on censorship resistance, data ownership, and fair revenue distribution for creators. The system utilizes a hybrid architecture combining the Ethereum blockchain for logic and transaction settlement, and IPFS (InterPlanetary File System) for distributed content storage. Key features include Self-Sovereign Identity (SSI), an NFT-based marketplace, encrypted content delivery, and a zero-fee tipping mechanism. We demonstrate data consistency and network persistence through a custom Host-Client topology using Tailscale and the Go implementation of IPFS (Kubo).
+\end{abstract}
+
+% --- Section 1: Introduction ---
+\section{Introduction}
+Traditional social media platforms rely on centralized servers, creating single points of failure and giving platform owners absolute control over user data. This centralization leads to issues regarding censorship, privacy violations, and unfair monetization models where intermediaries extract significant fees from content creators.
+
+We propose a Web 3.0 alternative: a Decentralized Social Media DApp. By leveraging blockchain technology and distributed file systems, our application ensures that users retain ownership of their content and identity. The platform is built upon the Ethereum Hardhat environment for smart contract execution and IPFS for storage, ensuring censorship resistance. Furthermore, we implement a fair economic model where creators receive 100\% of the tips (likes) directly from their audience, eliminating platform fees.
+
+% --- Section 2: System Architecture ---
+\section{System Architecture}
+The application follows a hybrid decentralized architecture. To overcome the high cost of storing large media files on the blockchain, we utilize IPFS for heavy static assets (images, audio, video) while using the Ethereum blockchain for state management, identity verification, and financial transactions.
+
+\subsection{Cooperative Pinning Protocol}
+The core innovation of our architecture is the "View-to-Host" protocol, which ensures data persistence through user participation. Figure \ref{fig:architecture} details the sequence of events between a Host (User A) and a Guest (User B) connected via a secure Tailscale mesh network.
+
+\begin{enumerate}
+    \item \textbf{Initial Upload \& Discovery:} The process begins when the Host (User A) uploads a file (e.g., "Hello.png"). This file is initially stored \textit{only} on User A's local IPFS node. When the Guest (User B) opens the application, their client queries the Ethereum Blockchain to retrieve the post list and obtains the unique Content Identifier (CID).
+
+    \item \textbf{P2P Data Transfer:} User B's client requests the content using the CID. Since the file is not yet on User B's machine, their IPFS node uses the Swarm protocol to locate User A and download the data directly via the Tailscale tunnel.
+
+    \item \textbf{Auto-Pinning (The Innovation):} Once User B successfully views the content, the application logic automatically triggers an \texttt{ipfs.pin.add} command on User B's local node. This transitions User B from a passive "viewer" to an active "co-host," permanently saving the file to their local storage.
+
+    \item \textbf{Fault Tolerance (The "Unplug" Test):} To validate the architecture, the system is tested against a failure scenario where User A goes offline. As shown in the diagram, when User B refreshes the page, the content does not disappear. Instead, the local IPFS node retrieves the image from its own cache. This proves that data has successfully migrated and is no longer dependent on the original creator.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    % Ensure your image is named architecture.png and is in the same folder
+    \includegraphics[width=0.6\textwidth]{architecture.png}
+    \caption{Sequence Diagram of the Cooperative Pinning Protocol, illustrating how data survives when the Host goes offline.}
+    \label{fig:architecture}
+\end{figure}
+
+% --- Section 3: Technical Implementation ---
+\section{Technical Implementation}
+The core technology stack consists of \textbf{Kubo} (the Go implementation of IPFS) for storage nodes and \textbf{Hardhat} for the local Ethereum development environment. The frontend interacts with these layers via \textbf{Metamask} and Web3 libraries.
+
+\subsection{Wallet Integration and Authentication}
+Unlike traditional username/password schemes, our application uses cryptographic key pairs for authentication. Users log in using the \textbf{Metamask} browser extension. The user's Ethereum wallet address serves as their unique identifier within the system. For demonstration purposes, we utilized test accounts imported via private keys into Metamask to simulate various network actors.
+
+\subsection{Self-Sovereign Identities (SSI)}
+We implemented a Self-Sovereign Identity system to establish trust and authenticity. User profiles (Bio, Display Name, Avatar CIDs) are not stored on a central database but are recorded directly on the blockchain smart contract.
+\begin{itemize}
+    \item This ensures that a user's identity is portable and immutable.
+    \item Users can mathematically prove they are the owners of their profiles by signing transactions with their private keys.
+    \item This creates a "Root of Trust" directly on the ledger.
+\end{itemize}
+
+\subsection{NFT Minting and Marketplace}
+Creators can tokenize their content (music, paintings, digital art) by minting them as Non-Fungible Tokens (NFTs).
+\begin{enumerate}
+    \item The media file is uploaded to IPFS, generating a Content Identifier (CID).
+    \item A smart contract function mints a token linked to this CID.
+    \item Creators can list these NFTs for sale at a desired ETH price.
+    \item Ownership is tracked on-chain, allowing for a decentralized secondary market.
+\end{enumerate}
+
+\subsection{Encrypted Posts and Token-Gating}
+A key feature of our platform is the "Subscribers Only" content model, achieved through encryption and NFTs.
+
+\textbf{The Encryption Logic:}
+To ensure that only paying subscribers can view exclusive content, we implemented the following logic:
+\begin{enumerate}
+    \item \textbf{Encryption:} When an artist posts premium content, the media file is encrypted client-side using a symmetric key (AES) before being uploaded to IPFS. This ensures that even if the IPFS CID is public, the raw content remains unreadable.
+    \item \textbf{Token-Gating:} The decryption key is not stored openly. Access is governed by the Smart Contract. The frontend application checks the user's wallet balance for the specific NFT associated with the post.
+    \item \textbf{Decryption:} If the user owns the required NFT (Proof of Payment), the system retrieves the encrypted payload from IPFS and allows the local wallet to decrypt the content for viewing.
+\end{enumerate}
+
+\subsection{Zero-Fee Tipping System}
+We replaced the traditional "Like" button with a financial transaction. In our system, a "Like" represents a direct monetary tip.
+\begin{itemize}
+    \item \textbf{Mechanism:} When a user clicks "Like," Metamask prompts a transaction of \textbf{0.01 ETH}.
+    \item \textbf{Direct Transfer:} The smart contract routes these funds directly from the Liker's wallet to the Content Creator's wallet.
+    \item \textbf{Fair Economy:} The protocol charges \textbf{0\% fees}, ensuring the artist receives the full value of the support.
+\end{itemize}
+
+% --- Section 4: Network Topology and Data Consistency ---
+\section{Network Topology and Data Persistence}
+To demonstrate the decentralized nature of the application and ensure data consistency, we set up a private P2P network.
+
+\subsection{IPFS Swarm via Tailscale}
+Since default local IPFS nodes cannot easily discover each other over different NATs (Network Address Translations), we utilized \textbf{Tailscale} to create a secure overlay network.
+\begin{enumerate}
+    \item \textbf{Setup:} Two computers were connected via Tailscale, assigning them virtual static IPs.
+    \item \textbf{Peering:} One machine acted as the "Server" (Host) and the other as the "Client."
+    \item \textbf{Swarm Connect:} We manually peered the IPFS nodes using the specific IPFS IDs and Tailscale IPs.
+\end{enumerate}
+
+\subsection{Data Persistence Results}
+This setup allowed us to verify that content uploaded by the Host was instantly discoverable and retrievable by the Client node. By pinning the content on both nodes, we achieved data redundancy, ensuring that even if one node goes offline, the data remains persistent on the network.
+
+% --- Section 5: Conclusion ---
+\section{Conclusion}
+This project successfully demonstrates a functional prototype of a Web 3.0 social media platform. By integrating Ethereum Smart Contracts for logic and IPFS for storage, we achieved censorship resistance and data sovereignty. The implementation of SSI, Token-Gated encryption, and a zero-fee tipping economy offers a viable alternative to the exploitative models of Web 2.0. The successful networking test via Tailscale proves the system's capability to maintain data consistency across distributed nodes.
+
+\end{document}
